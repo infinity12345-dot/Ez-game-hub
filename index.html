@@ -270,7 +270,37 @@
       <button class="btn secondary" onclick="downloadProgress()" id="btnCloudLoad" style="flex:1">⬇ Load</button>
     </div>
     <button class="btn" onclick="upgradeToAccount()" id="btnUpgradeAccount" style="margin-top:6px;display:none">📝 Register This Progress</button>
+    <button class="btn" onclick="openGiftModal()" id="btnGiftSend" style="margin-top:6px;display:none;background:linear-gradient(90deg,#ce93d8,#7b1fa2);color:#fff">🎁 Send Gift</button>
     <button class="btn secondary" onclick="logout()" style="margin-top:6px" id="btnLogout">🚪 Logout / Switch User</button>
+  </div>
+</div>
+
+<!-- GIFT MODAL — registered users send coins/diamonds to other registered accounts -->
+<div id="giftBackdrop" class="backdrop" onclick="closeGiftModal()">
+  <div class="modal" onclick="event.stopPropagation()" style="position:relative">
+    <button class="closeX" onclick="closeGiftModal()">✕</button>
+    <h2 id="giftTitle">🎁 Send a Gift</h2>
+    <p style="font-size:12px;opacity:.85;text-align:center;margin:6px 0 12px" id="giftTagline">
+      Send coins or diamonds to another player's account.
+    </p>
+    <div class="field">
+      <label id="lblGiftTo">Recipient username</label>
+      <input type="text" id="giftRecipientInput" maxlength="16" placeholder="username">
+    </div>
+    <div class="field">
+      <label id="lblGiftType">What to send</label>
+      <select id="giftTypeSelect">
+        <option value="coins">💰 Coins</option>
+        <option value="diamonds">💎 Diamonds</option>
+      </select>
+    </div>
+    <div class="field">
+      <label id="lblGiftAmount">Amount</label>
+      <input type="number" id="giftAmountInput" min="1" max="999999" value="10">
+    </div>
+    <div id="giftError" style="color:#ef5350;font-size:12px;text-align:center;min-height:18px"></div>
+    <button class="btn" onclick="sendGift()" id="btnGiftConfirm">🎁 Send</button>
+    <button class="btn secondary" onclick="closeGiftModal()" style="margin-top:6px" id="btnGiftCancel">Cancel</button>
   </div>
 </div>
 
@@ -383,7 +413,15 @@ const I18N = {
     btnLoginSubmitL:   "🔑 Login",
     btnLoginBack:      "← Back",
     btnCancelLogout:   "↩ Cancel — back to my account",
-    autoCreated:       "📝 New account created — welcome!"
+    autoCreated:       "📝 New account created — welcome!",
+    btnGiftSend:       "🎁 Send Gift",
+    giftTitle:         "🎁 Send a Gift",
+    giftTagline:       "Send coins or diamonds to another player's account.",
+    lblGiftTo:         "Recipient username",
+    lblGiftType:       "What to send",
+    lblGiftAmount:     "Amount",
+    btnGiftConfirm:    "🎁 Send",
+    btnGiftCancel:     "Cancel"
   },
   zh: {
     welcome:       "歡迎回來,{name}!",
@@ -409,7 +447,15 @@ const I18N = {
     btnLoginSubmitL:   "🔑 登入",
     btnLoginBack:      "← 返回",
     btnCancelLogout:   "↩ 取消 — 回到原帳號",
-    autoCreated:       "📝 已建立新帳號 — 歡迎!"
+    autoCreated:       "📝 已建立新帳號 — 歡迎!",
+    btnGiftSend:       "🎁 送禮物",
+    giftTitle:         "🎁 送禮物",
+    giftTagline:       "把金幣或鑽石送給其他玩家。",
+    lblGiftTo:         "收禮者用戶名",
+    lblGiftType:       "要送什麼",
+    lblGiftAmount:     "數量",
+    btnGiftConfirm:    "🎁 送出",
+    btnGiftCancel:     "取消"
   }
 };
 
@@ -433,6 +479,14 @@ function applyLang() {
   setText("btnSave",       t("btnSave"));
   setText("btnLogout",     t("btnLogout"));
   setText("btnUpgradeAccount", t("btnUpgradeAccount"));
+  setText("btnGiftSend",       t("btnGiftSend"));
+  setText("giftTitle",         t("giftTitle"));
+  setText("giftTagline",       t("giftTagline"));
+  setText("lblGiftTo",         t("lblGiftTo"));
+  setText("lblGiftType",       t("lblGiftType"));
+  setText("lblGiftAmount",     t("lblGiftAmount"));
+  setText("btnGiftConfirm",    t("btnGiftConfirm"));
+  setText("btnGiftCancel",     t("btnGiftCancel"));
   /* Login modal labels */
   setText("loginWelcomeTitle", t("loginWelcomeTitle"));
   setText("loginTagline",      t("loginTagline"));
@@ -516,12 +570,14 @@ function openSettings() {
   const v = parseInt(localStorage.getItem("flappyVolume") || "50", 10);
   document.getElementById("inputVol").value  = v;
   document.getElementById("volVal").textContent = v;
-  /* Show "Register This Progress" only for guests — registered users don't need it */
+  const isGuest = localStorage.getItem("flappyAccountType") === "guest";
+  const isRegistered = localStorage.getItem("flappyAccountType") === "registered";
+  /* Show "Register This Progress" only for guests */
   const upBtn = document.getElementById("btnUpgradeAccount");
-  if (upBtn) {
-    const isGuest = localStorage.getItem("flappyAccountType") === "guest";
-    upBtn.style.display = isGuest ? "" : "none";
-  }
+  if (upBtn) upBtn.style.display = isGuest ? "" : "none";
+  /* Show "Send Gift" only for registered users — guests can't gift (no account) */
+  const giftBtn = document.getElementById("btnGiftSend");
+  if (giftBtn) giftBtn.style.display = isRegistered ? "" : "none";
   document.getElementById("settingsBackdrop").classList.add("show");
 }
 function closeSettings() {
@@ -572,8 +628,18 @@ try {
 /* ============ Cloud progress sync ============
    Saves coins, pets, levels, records to Firebase under your account key.
    Guests don't sync (no account). Sync triggers: hub load, every 30s, page unload. */
-const SYNC_PREFIXES = ["flappyCoins", "flappyDiamonds", "knife.", "brick.", "snake.", "parkour."];
-function shouldSync(k) { return SYNC_PREFIXES.some(p => k === p || k.startsWith(p)); }
+/* Anything starting with these prefixes gets synced to the cloud account... */
+const SYNC_PREFIXES = ["flappy", "knife.", "brick.", "snake.", "parkour."];
+/* ...EXCEPT these keys, which are per-device (settings, login state, legacy flags). */
+const SYNC_EXCLUDE = [
+  "flappyName", "flappyAccountType", "flappyAccountKey",
+  "flappyLang", "flappyVolume", "flappySound", "flappyNameSet",
+  "everUsedHub", "everRegistered"
+];
+function shouldSync(k) {
+  if (SYNC_EXCLUDE.includes(k)) return false;
+  return SYNC_PREFIXES.some(p => k === p || k.startsWith(p));
+}
 /* Firebase rejects keys containing ".", "#", "$", "/", "[", or "]".
    Many of our localStorage keys use dots (e.g. "knife.coins"), so we encode them. */
 function encodeFirebaseKey(k) { return k.replace(/\./g, "_DOT_"); }
@@ -752,6 +818,105 @@ function showStage1() {
 }
 function markEverUsed() { localStorage.setItem("everUsedHub", "1"); }
 function markEverRegistered() { localStorage.setItem("everRegistered", "1"); }
+/* ============ Gifting system ============
+   Send coins or diamonds to another registered account. Sender's balance is deducted locally
+   and synced; recipient's gift is queued under hubGifts/<recipientKey>/ and auto-collected the
+   next time they log in or refresh the hub. */
+function openGiftModal() {
+  closeSettings();
+  document.getElementById("giftError").textContent = "";
+  document.getElementById("giftRecipientInput").value = "";
+  document.getElementById("giftAmountInput").value = "10";
+  document.getElementById("giftBackdrop").classList.add("show");
+  document.getElementById("giftRecipientInput").focus();
+}
+function closeGiftModal() {
+  document.getElementById("giftBackdrop").classList.remove("show");
+}
+async function sendGift() {
+  const errEl = document.getElementById("giftError");
+  errEl.textContent = "";
+  const recipient = document.getElementById("giftRecipientInput").value.trim();
+  const type = document.getElementById("giftTypeSelect").value;          /* "coins" | "diamonds" */
+  const amount = parseInt(document.getElementById("giftAmountInput").value, 10);
+  /* Validation */
+  if (!recipient) { errEl.textContent = "❌ Enter recipient username"; return; }
+  if (!amount || amount <= 0) { errEl.textContent = "❌ Amount must be positive"; return; }
+  if (localStorage.getItem("flappyAccountType") !== "registered") {
+    errEl.textContent = "❌ Login first to send gifts"; return;
+  }
+  if (!usersRef) { errEl.textContent = "❌ Offline"; return; }
+  const senderKey  = localStorage.getItem("flappyAccountKey");
+  const senderName = localStorage.getItem("flappyName");
+  const recipientKey = nameKey(recipient);
+  if (recipientKey === senderKey) { errEl.textContent = "❌ Can't gift yourself"; return; }
+  errEl.textContent = "⏳ Checking...";
+  try {
+    /* Confirm recipient exists */
+    const userSnap = await usersRef.child(recipientKey).once("value");
+    if (!userSnap.exists()) { errEl.textContent = "❌ No such user — check the name"; return; }
+    /* Check sender has enough */
+    const localKey = type === "coins" ? "flappyCoins" : "flappyDiamonds";
+    const balance = parseInt(localStorage.getItem(localKey) || "0", 10);
+    if (balance < amount) {
+      errEl.textContent = `❌ Need ${amount - balance} more ${type === "coins" ? "💰" : "💎"}`;
+      return;
+    }
+    /* Queue the gift in cloud — recipient picks up on next sync */
+    const giftRef = firebase.database().ref("hubGifts/" + recipientKey).push();
+    await giftRef.set({
+      from:      senderKey,
+      fromName:  senderName,
+      type:      type,
+      amount:    amount,
+      timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+    /* Deduct from sender and upload */
+    localStorage.setItem(localKey, balance - amount);
+    refreshWallet();
+    await uploadProgress();
+    closeGiftModal();
+    showSyncStatus(`🎁 Sent ${amount} ${type === "coins" ? "💰" : "💎"} to ${userSnap.val().name}`);
+  } catch (e) {
+    console.warn("Send gift failed", e);
+    errEl.textContent = "⚠ Send failed — try again";
+  }
+}
+/* Pick up any gifts waiting for this account, apply them, then remove from cloud. */
+async function checkPendingGifts() {
+  if (!progressRef) return;
+  const accountKey = localStorage.getItem("flappyAccountKey");
+  if (!accountKey || localStorage.getItem("flappyAccountType") !== "registered") return;
+  try {
+    const giftsRef = firebase.database().ref("hubGifts/" + accountKey);
+    const snap = await giftsRef.once("value");
+    if (!snap.exists()) return;
+    const gifts = snap.val();
+    let coins = 0, diamonds = 0;
+    const lines = [];
+    Object.keys(gifts).forEach(id => {
+      const g = gifts[id];
+      if (g.type === "coins")    coins    += g.amount;
+      if (g.type === "diamonds") diamonds += g.amount;
+      lines.push(`${g.amount} ${g.type === "coins" ? "💰" : "💎"} from ${g.fromName || "?"}`);
+    });
+    if (coins > 0) {
+      const cur = parseInt(localStorage.getItem("flappyCoins") || "0", 10);
+      localStorage.setItem("flappyCoins", cur + coins);
+    }
+    if (diamonds > 0) {
+      const cur = parseInt(localStorage.getItem("flappyDiamonds") || "0", 10);
+      localStorage.setItem("flappyDiamonds", cur + diamonds);
+    }
+    await giftsRef.remove();        /* prevent double-collection */
+    refreshWallet();
+    await uploadProgress();
+    /* Visible thanks message */
+    const summary = lines.join(", ");
+    alert(`🎁 You received gifts!\n\n${summary}`);
+  } catch (e) { console.warn("Gift collect failed", e); }
+}
+
 /* Console helpers — paste into DevTools if you want to reset UI state for testing */
 window.showRegisterAgain = () => { localStorage.removeItem("everRegistered"); localStorage.removeItem("everUsedHub"); console.log("✅ Register button will appear next time the login modal opens"); };
 window.forceMergeNow     = async () => { await syncMergeProgress(); console.log("✅ Force merge complete"); };
@@ -909,6 +1074,7 @@ async function loginSubmit() {
       markEverUsed(); markEverRegistered();
       /* MERGE local + cloud so spending on this device + earnings on another both survive */
       await syncMergeProgress();
+      await checkPendingGifts();
       closeLogin();
       renderWelcome();
     }
@@ -966,10 +1132,12 @@ applyLang();
 refreshWallet();
 setInterval(refreshWallet, 1500);  /* poll in case another game tab modified it */
 maybeShowLogin();
-/* If already logged in (page refresh), MERGE local + cloud so neither side loses data.
-   Crucial for the "earned coins in a game → return to hub → don't get wiped by stale cloud" case. */
+/* If already logged in (page refresh), MERGE local + cloud, then collect any pending gifts. */
 if (localStorage.getItem("flappyAccountType") === "registered") {
-  setTimeout(() => syncMergeProgress(), 500);
+  setTimeout(async () => {
+    await syncMergeProgress();
+    await checkPendingGifts();
+  }, 500);
 }
 </script>
 </body>
