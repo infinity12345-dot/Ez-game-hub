@@ -1,0 +1,3097 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gacha Flyer 🐤</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🐦</text></svg>'>
+<!-- Firebase Realtime Database for online leaderboard -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+  body {
+    margin: 0;
+    background: #70c5ce;
+    color: white;
+    text-align: center;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+  }
+  h2 {
+    margin: 8px 0;
+    font-size: 30px;
+    letter-spacing: 1px;
+    text-shadow: 2px 2px 0 #1a8a93;
+  }
+  #game {
+    background: linear-gradient(#70c5ce 0%, #70c5ce 80%, #ded895 80%, #ded895 100%);
+    display: block;
+    margin: 0 auto;
+    border: 3px solid white;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  #info {
+    margin-top: 8px;
+    font-size: 14px;
+    opacity: 0.9;
+  }
+
+  .backBtn {
+    position: fixed;
+    bottom: 14px;
+    left: 14px;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.4);
+    color: white;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 14px;
+    text-decoration: none;
+    z-index: 1000;
+    transition: background 0.15s;
+  }
+  .backBtn:hover { background: rgba(0,0,0,0.65); }
+
+  #menu, #overlay, .shopPopup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.92);
+    padding: 20px 30px;
+    border-radius: 14px;
+    min-width: 320px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  /* Layering: menu/overlay below backdrop, popups above */
+  #menu, #overlay { z-index: 150; }
+  .shopPopup     { z-index: 250; }
+  /* Records button (top-left) */
+  #recordsBtn {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    background: #2c3e50;
+    color: white;
+    padding: 9px 16px;
+    border-radius: 22px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    border: 2px solid #00bcd4;
+    z-index: 100;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 0 10px rgba(0,188,212,0.4);
+    user-select: none;
+  }
+  #recordsBtn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 18px rgba(0,188,212,0.7);
+  }
+
+  /* Game mode toggle (bottom-right) */
+  #modeBtn {
+    position: fixed;
+    bottom: 14px;
+    right: 14px;
+    background: #2c3e50;
+    color: white;
+    padding: 9px 16px;
+    border-radius: 22px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    border: 2px solid #4caf50;
+    z-index: 100;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    box-shadow: 0 0 10px rgba(76,175,80,0.4);
+    user-select: none;
+  }
+  #modeBtn:hover { transform: scale(1.05); box-shadow: 0 0 18px rgba(76,175,80,0.7); }
+  #modeBtn.infinite {
+    border-color: #ce93d8;
+    box-shadow: 0 0 12px rgba(206,147,216,0.5);
+  }
+  #modeBtn.infinite:hover { box-shadow: 0 0 22px rgba(206,147,216,0.9); }
+
+  /* Backdrop dims everything when a popup is open */
+  #backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(2px);
+    z-index: 200;
+    display: none;
+  }
+  /* Touch / mobile control buttons */
+  #mobileControls {
+    position: fixed;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 95;
+    pointer-events: none;
+  }
+  .mobileBtn {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    font-size: 26px;
+    border: 3px solid rgba(255,255,255,0.85);
+    background: rgba(0,0,0,0.55);
+    color: white;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    position: relative;
+  }
+  .mobileBtn.show { display: flex; }
+  .mobileBtn:active { background: rgba(255,255,255,0.3); transform: scale(0.92); }
+  #btnShoot      { border-color: #ff7043; box-shadow: 0 0 12px rgba(255,112,67,0.5); }
+  #btnDash       { border-color: #00bcd4; box-shadow: 0 0 12px rgba(0,188,212,0.5); }
+  #btnInvincible { border-color: #ffd54f; box-shadow: 0 0 12px rgba(255,213,79,0.6); }
+  .btnCharges {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: white;
+    color: black;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: bold;
+    min-width: 18px;
+    height: 18px;
+    line-height: 18px;
+    padding: 0 4px;
+    box-sizing: border-box;
+  }
+  #backdrop.show { display: block; }
+  #overlay, .shopPopup { display: none; }
+  .shopPopup { min-width: 420px; max-width: 460px; }
+
+  /* Left side panel: HUD + skill display (below the records button) */
+  #leftCorner {
+    position: fixed;
+    top: 70px;
+    left: 14px;
+    z-index: 100;
+    user-select: none;
+    text-align: center;
+  }
+  .leftIcon {
+    background: #2c3e50;
+    color: white;
+    border: 2px solid #00bcd4;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 0 12px rgba(0,188,212,0.4);
+  }
+  .leftIcon:hover {
+    transform: scale(1.08) rotate(5deg);
+    box-shadow: 0 0 20px rgba(0,188,212,0.7);
+  }
+  #skillCorner {
+    margin-top: 14px;
+    background: rgba(0,0,0,0.75);
+    padding: 8px 12px;
+    border-radius: 10px;
+    max-width: 180px;
+    text-align: left;
+    border-left: 3px solid #ffcc00;
+  }
+  .skillCornerName {
+    font-weight: bold;
+    font-size: 14px;
+    color: #ffcc00;
+  }
+  .skillCornerDesc {
+    font-size: 11.5px;
+    color: #cfd8dc;
+    margin-top: 3px;
+    line-height: 1.3;
+  }
+  #recordsContent {
+    color: white;
+    text-align: left;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  #recordsContent .recRow {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  #recordsContent h4 {
+    margin: 12px 0 4px;
+    color: #ffcc00;
+    font-size: 14px;
+  }
+  .recTabs {
+    display: flex;
+    gap: 4px;
+    margin: 6px 0 10px;
+  }
+  .recTab {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    color: #aaa;
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .recTab:hover { color: white; background: rgba(255,255,255,0.1); }
+  .recTab.active {
+    background: #ffcc00;
+    color: #222;
+    border-color: #ffcc00;
+  }
+  .recordsActions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .recordsActions button { font-weight: bold; padding: 6px 14px; }
+
+  /* Corner panel: coins + shop buttons */
+  #coinCorner {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 100;
+    user-select: none;
+    text-align: center;
+  }
+  #coinCorner .coinPill,
+  #coinCorner .diamondPill {
+    color: #333;
+    font-weight: bold;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    display: inline-block;
+  }
+  #coinCorner .coinPill { background: linear-gradient(90deg, #ffcc00, #ffaa00); }
+  #coinCorner .diamondPill {
+    background: linear-gradient(90deg, #4dd0e1, #1e88e5);
+    color: white;
+    margin-top: 6px;
+  }
+  .cornerButtons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .cornerBtn { text-align: center; }
+  .iconLabel {
+    font-size: 12px;
+    color: white;
+    margin-top: 2px;
+    text-shadow: 0 0 4px black, 0 0 4px black;
+    font-weight: bold;
+  }
+
+  /* Shop icon buttons */
+  .shopIcon {
+    background: #2c3e50;
+    color: white;
+    border: 2px solid #ffcc00;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 0 12px rgba(255,204,0,0.4);
+  }
+  .shopIcon:hover {
+    transform: scale(1.08) rotate(-5deg);
+    box-shadow: 0 0 20px rgba(255,204,0,0.7);
+  }
+  #skillShopBtn { border-color: #00ccff; box-shadow: 0 0 12px rgba(0,204,255,0.4); }
+  #skillShopBtn:hover { box-shadow: 0 0 20px rgba(0,204,255,0.7); }
+  .wishIcon { border-color: #ce93d8; box-shadow: 0 0 12px rgba(206,147,216,0.5); background: linear-gradient(135deg,#7b1fa2,#3949ab); }
+  .wishIcon:hover { box-shadow: 0 0 22px rgba(206,147,216,0.9); }
+  .wishIcon.firstTime { animation: wishPulse 1.2s ease-in-out infinite; }
+  @keyframes wishPulse {
+    0%, 100% { transform: scale(1);    box-shadow: 0 0 12px rgba(206,147,216,0.5); }
+    50%      { transform: scale(1.15); box-shadow: 0 0 26px rgba(255,213,79,1); }
+  }
+
+  /* Wish popup */
+  .wishCost { text-align:center; opacity:0.85; margin-bottom:14px; font-size:14px; }
+  .wishRates { background:rgba(255,255,255,0.06); border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:13px; line-height:1.7; }
+  #wishStars { font-size: 32px; text-align:center; margin: 14px 0 6px; }
+  #wishItem { font-size: 56px; text-align: center; margin: 6px 0; }
+  #wishMessage { text-align:center; font-size:14px; margin: 6px 0 16px; line-height:1.4; }
+  .reveal-anim { animation: revealPop 0.5s ease-out; }
+  @keyframes revealPop {
+    0%   { transform: scale(0.3) rotate(-15deg); opacity: 0; }
+    60%  { transform: scale(1.15) rotate(5deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+  /* Settings popup */
+  .settingRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    font-size: 14px;
+  }
+  .settingToggle {
+    background: rgba(255,255,255,0.1);
+    border: 2px solid rgba(255,255,255,0.2);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+  }
+  .settingToggle.on  { background: #4caf50; border-color: #4caf50; }
+  .settingToggle.off { background: #555; }
+  #nameInput {
+    background: rgba(255,255,255,0.08);
+    border: 2px solid rgba(255,255,255,0.15);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    width: 130px;
+    text-align: right;
+  }
+  #nameInput:focus { outline: none; border-color: #ffcc00; }
+  .langBtn {
+    background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(255,255,255,0.15);
+    color: #ccc;
+    padding: 6px 14px;
+    margin: 0 4px 0 0;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+  }
+  .langBtn:hover { background: rgba(255,255,255,0.12); color: white; }
+  .langBtn.active {
+    background: #ffcc00;
+    color: #222;
+    border-color: #ffcc00;
+  }
+
+  /* Pullable trade slider */
+  .tradeBox {
+    background: rgba(255,255,255,0.05);
+    padding: 10px 14px;
+    border-radius: 10px;
+    text-align: center;
+  }
+  .tradeInfo { font-size: 13px; margin-bottom: 6px; }
+  .tradeInfo b { color: #ffcc00; }
+  .tradeBox input[type=range] {
+    width: 100%;
+    margin: 6px 0 4px;
+    accent-color: #ffcc00;
+    cursor: grab;
+  }
+  .tradeBox input[type=range]:active { cursor: grabbing; }
+  .star5 { color: #ffd54f; text-shadow: 0 0 10px #ffd54f; }
+
+  /* ===== 5-star reveal animation ===== */
+  .fiveStarBurst {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 300;
+    overflow: hidden;
+  }
+  .fiveStarBurst::before {
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,213,79,0.85) 0%, rgba(255,213,79,0) 70%);
+    transform: translate(-50%, -50%);
+    animation: burst5 1.4s ease-out forwards;
+  }
+  @keyframes burst5 {
+    0%   { width: 30px;  height: 30px;  opacity: 1; }
+    50%  { width: 700px; height: 700px; opacity: 0.7; }
+    100% { width: 1100px; height: 1100px; opacity: 0; }
+  }
+  .fiveStarStar {
+    position: absolute;
+    font-size: 28px;
+    text-shadow: 0 0 8px #ffd54f;
+    animation: starFly 1.6s cubic-bezier(.2,.7,.4,1) forwards;
+  }
+  @keyframes starFly {
+    0%   { transform: translate(-50%, -50%) scale(0) rotate(0deg);   opacity: 0; }
+    15%  { transform: translate(-50%, -50%) scale(1.3) rotate(80deg); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.4) rotate(720deg); opacity: 0; }
+  }
+  .screenFlash {
+    position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(circle, rgba(255,213,79,0.55), rgba(255,213,79,0) 60%);
+    z-index: 290;
+    animation: flashFade 0.6s ease-out forwards;
+  }
+  @keyframes flashFade {
+    0%   { opacity: 0; }
+    25%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .star4 { color: #ce93d8; }
+  /* Starter coin banner */
+  .starterBanner {
+    background: linear-gradient(135deg, #ffd54f, #ffaa00, #ffd54f);
+    background-size: 200% 200%;
+    color: #4a2c00;
+    text-align: center;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-weight: bold;
+    font-size: 14px;
+    margin: 12px 0 6px;
+    box-shadow: 0 0 18px rgba(255, 213, 79, 0.7), inset 0 0 10px rgba(255,255,255,0.4);
+    border: 2px solid #fff;
+    animation: shimmer 2s ease-in-out infinite, popIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    text-shadow: 1px 1px 0 rgba(255,255,255,0.5);
+    letter-spacing: 0.5px;
+  }
+  @keyframes shimmer {
+    0%, 100% { background-position: 0% 50%; }
+    50%      { background-position: 100% 50%; }
+  }
+  @keyframes popIn {
+    0%   { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+    60%  { transform: scale(1.15) rotate(5deg);  opacity: 1; }
+    100% { transform: scale(1) rotate(0);        opacity: 1; }
+  }
+  .star3 { color: #90caf9; }
+  .wishGrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0 12px; }
+  .wishGridItem { background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 4px; text-align: center; }
+  .wishGridItem.s5 { border-color: #ffd54f; box-shadow: 0 0 8px rgba(255,213,79,0.5); }
+  .wishGridItem.s4 { border-color: #ce93d8; }
+  .wishGridItem.s3 { border-color: #90caf9; opacity: 0.85; }
+  .wishGridIcon { font-size: 22px; line-height: 1; }
+  .wishGridName { font-size: 9.5px; opacity: 0.85; margin-top: 2px; line-height: 1.15; min-height: 22px; }
+  .wishGridStars { font-size: 9px; margin-top: 2px; }
+
+  /* Close X */
+  .closeX {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 22px;
+    cursor: pointer;
+    opacity: 0.7;
+  }
+  .closeX:hover { opacity: 1; }
+
+  .currentPick {
+    margin: 6px 0 14px;
+    font-size: 15px;
+    opacity: 0.9;
+  }
+  .currentPick b { color: #ffcc00; }
+  .currentSkillDesc {
+    font-size: 12px;
+    color: #b0bec5;
+    margin-top: 4px;
+    font-style: italic;
+  }
+  .stageRowWrap { margin: 14px 0 12px; }
+  .stageLabel { font-size: 13px; opacity: 0.7; margin-bottom: 6px; }
+  #stageRow { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .stageBtn {
+    padding: 7px 12px;
+    border: 2px solid #555;
+    border-radius: 8px;
+    background: #222;
+    color: white;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .stageBtn:hover { background: #333; }
+  .stageBtn.selected {
+    border-color: #ffcc00;
+    background: #443618;
+    box-shadow: 0 0 10px rgba(255,204,0,0.4);
+  }
+  .stageBtn.locked {
+    opacity: 0.5;
+    border-style: dashed;
+    cursor: not-allowed;
+  }
+
+  /* ===== Shop layout ===== */
+  .shopHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .shopHeader h3 { margin: 0; }
+  .shopBalance {
+    background: linear-gradient(90deg, #ffcc00, #ffaa00);
+    color: #333;
+    padding: 5px 12px;
+    border-radius: 16px;
+    font-weight: bold;
+    font-size: 14px;
+  }
+  .shopTabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+  }
+  .tab {
+    padding: 8px 18px;
+    background: transparent;
+    border: none;
+    color: #aaa;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+  }
+  .tab:hover { color: white; }
+  .tab.active {
+    color: #ffcc00;
+    border-bottom-color: #ffcc00;
+  }
+  .shopGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .card {
+    background: #1f1f1f;
+    border: 2px solid #333;
+    border-radius: 10px;
+    padding: 10px 6px 8px;
+    cursor: pointer;
+    transition: transform 0.12s, background 0.12s, border-color 0.12s;
+    text-align: center;
+    color: white;
+  }
+  .card:hover {
+    background: #2a2a2a;
+    transform: translateY(-2px);
+  }
+  .card.selected {
+    border-color: #ffcc00;
+    background: #2a2618;
+    box-shadow: 0 0 10px rgba(255,204,0,0.35);
+  }
+  .card.locked {
+    opacity: 0.65;
+    border-style: dashed;
+  }
+  /* Wish-only items: golden aura no matter the state */
+  .card.wishOnly {
+    border-color: #ffd54f;
+    background: linear-gradient(135deg, #2a2418 0%, #1a1a1a 70%);
+    box-shadow: 0 0 12px rgba(255, 213, 79, 0.45), inset 0 0 18px rgba(255, 213, 79, 0.06);
+    animation: wishCardGlow 2.5s ease-in-out infinite;
+  }
+  .card.wishOnly:hover {
+    background: linear-gradient(135deg, #3a3024 0%, #2a2a2a 70%);
+    box-shadow: 0 0 22px rgba(255, 213, 79, 0.8), inset 0 0 22px rgba(255, 213, 79, 0.12);
+    transform: translateY(-3px);
+  }
+  .card.wishOnly.selected {
+    background: linear-gradient(135deg, #4a3a18 0%, #2a2618 70%);
+    box-shadow: 0 0 22px rgba(255, 213, 79, 0.85);
+  }
+  .card.wishOnly.locked { opacity: 0.85; }
+  @keyframes wishCardGlow {
+    0%, 100% { box-shadow: 0 0 10px rgba(255, 213, 79, 0.35); }
+    50%      { box-shadow: 0 0 18px rgba(255, 213, 79, 0.7); }
+  }
+  .cardIcon {
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .cardName {
+    font-size: 13px;
+    font-weight: bold;
+    line-height: 1.1;
+  }
+  .cardDesc {
+    font-size: 12px;
+    color: #cfd8dc;
+    margin: 5px 2px 8px;
+    min-height: 42px;
+    line-height: 1.35;
+  }
+  .cardStatus {
+    font-size: 11px;
+    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 10px;
+    display: inline-block;
+  }
+  .status-equipped { background: #ffcc00; color: #333; }
+  .status-equip    { background: rgba(255,255,255,0.12); color: white; }
+  .status-locked   { background: #2a2a2a; color: #ffcc00; border: 1px solid #444; }
+  .resetBtn {
+    margin: 6px auto 0;
+    display: block;
+    opacity: 0.5;
+  }
+  .resetBtn:hover { opacity: 1; }
+
+  button.start {
+    margin-top: 8px;
+    padding: 10px 24px;
+    font-size: 18px;
+    border: none;
+    border-radius: 8px;
+    background: #ffcc00;
+    color: #333;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  button.start:hover { background: #ffd633; }
+  button.tiny {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: none;
+    border-radius: 6px;
+    background: #555;
+    color: white;
+    cursor: pointer;
+    margin-left: 6px;
+  }
+  button.tiny:hover { background: #777; }
+
+  h3 { margin: 4px 0; font-size: 16px; }
+
+  #toast {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.85);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    font-weight: bold;
+  }
+  #toast.show { opacity: 1; }
+
+  #hud {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+    pointer-events: none;
+  }
+  #hud:empty { display: none; }
+  #hud .badge {
+    background: rgba(0,0,0,0.7);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .badge {
+    background: rgba(0,0,0,0.5);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+  }
+  .coin-pop {
+    color: #ffcc00 !important;
+  }
+</style>
+</head>
+<body>
+
+<a class="backBtn" href="../index.html">← Back to Hub</a>
+
+<h2>Gacha Flyer 🐤</h2>
+<canvas id="game" width="520" height="640"></canvas>
+<div id="info">SPACE / Click to flap • Earn 1 coin per point!</div>
+
+<div id="toast"></div>
+<div id="backdrop" onclick="closeAllPopups()"></div>
+
+<!-- Touch / mobile control buttons (right side, visible only when usable) -->
+<div id="mobileControls">
+  <button class="mobileBtn" id="btnInvincible" title="Invincible (I)">🦾</button>
+  <button class="mobileBtn" id="btnDash" title="Dash (Q)">💨<span class="btnCharges" id="dashCount"></span></button>
+  <button class="mobileBtn" id="btnShoot" title="Shoot (F)">🔫</button>
+</div>
+
+<!-- Bottom-right: game mode toggle -->
+<button id="modeBtn" onclick="toggleMode()" title="Switch game mode">👹 Boss</button>
+
+<!-- Left side: HUD (skill states) + skill description -->
+<div id="leftCorner">
+  <div id="hud"></div>
+  <div id="skillCorner">
+    <div class="skillCornerName"><span id="cornerSkillName">🚫 None</span></div>
+    <div class="skillCornerDesc" id="cornerSkillDesc">Pure skill</div>
+  </div>
+</div>
+
+<!-- Records button (bottom-left corner) -->
+<button id="recordsBtn" onclick="openRecords()" title="Records">📊 <span data-i18n="records">Records</span></button>
+
+<!-- Records popup -->
+<div id="records" class="shopPopup">
+  <button class="closeX" onclick="closeRecords()">✕</button>
+  <h3>📊 <span data-i18n="records">Records</span></h3>
+  <div id="recordsContent"></div>
+</div>
+
+<!-- Coin + shop button corner -->
+<div id="coinCorner">
+  <div class="coinPill">💰 <span id="coinCount">0</span></div>
+  <div class="diamondPill">💎 <span id="diamondCount">0</span></div>
+  <div class="cornerButtons">
+    <div class="cornerBtn">
+      <button id="shopBtn" class="shopIcon" onclick="openShop()" title="Shop">🛒</button>
+      <div class="iconLabel" data-i18n="shop">Shop</div>
+    </div>
+    <div class="cornerBtn">
+      <button id="wishBtn" class="shopIcon wishIcon" onclick="openWish()" title="Wish">✨</button>
+      <div class="iconLabel" data-i18n="wish">Wish</div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings popup -->
+<div id="settings" class="shopPopup">
+  <button class="closeX" onclick="closeSettings()">✕</button>
+  <h3 data-i18n="settings">Settings</h3>
+
+  <div class="settingRow">
+    <span>👤 <span data-i18n="name">Name</span></span>
+    <input id="nameInput" type="text" maxlength="14" onchange="setName(this.value)" placeholder="Your name">
+  </div>
+
+  <div class="settingRow">
+    <span>🔊 <span data-i18n="sound">Sound</span></span>
+    <button id="settingsSoundBtn" class="settingToggle" onclick="toggleSound()">On</button>
+  </div>
+
+  <div class="settingRow" style="flex-direction:column; align-items:flex-start; gap:8px">
+    <span>🌐 <span data-i18n="language">Language</span></span>
+    <div>
+      <button class="langBtn" data-lang="en" onclick="setLanguage('en')">English</button>
+      <button class="langBtn" data-lang="zh" onclick="setLanguage('zh')">繁體中文</button>
+    </div>
+  </div>
+</div>
+
+<!-- Required name setup popup -->
+<div id="nameRequired" class="shopPopup">
+  <h3>👤 Pick your player name!</h3>
+  <p style="font-size:14px; line-height:1.5; margin: 10px 0">
+    This will appear on the <b>🌐 global leaderboard</b> for all players to see.<br>
+    <b style="color:#ffd54f">Each name must be unique</b> — pick something cool!
+  </p>
+  <input id="firstNameInput" type="text" maxlength="14" placeholder="Your name (max 14 chars)"
+         style="width:100%; padding:10px; font-size:15px; border-radius:8px; border:2px solid #ffcc00; background:rgba(255,255,255,0.08); color:white; box-sizing:border-box; margin:8px 0">
+  <div id="nameStatus" style="min-height:20px; font-size:12px; opacity:0.8; margin-bottom:8px"></div>
+  <button class="start" onclick="confirmFirstName()" style="width:100%">✅ Confirm Name</button>
+</div>
+
+<!-- First-time intro popup -->
+<div id="intro" class="shopPopup">
+  <h3>👋 Welcome to Gacha Flyer!</h3>
+  <div class="starterBanner">
+    🎁 <b>STARTER GIFT</b> 🎁<br>
+    <span style="font-size:22px">+100 💰 coins!</span>
+  </div>
+  <div style="text-align:left; line-height:1.6; font-size:14px; margin: 12px 0;">
+    <p style="margin:6px 0"><b>💰 Coins</b> — earned by passing pipes. Buy skins & skills in the 🛒 shop.</p>
+    <p style="margin:6px 0"><b>💎 Diamonds</b> — earned by beating bosses, or trade 400 💰 → 1 💎.</p>
+    <p style="margin:6px 0"><b>✨ Wishes</b> — spend 💎 to roll for rare items:</p>
+    <div style="background:rgba(255,255,255,0.06); padding:8px 12px; border-radius:6px; margin:6px 0">
+      ★★★★★ <span style="color:#ffd54f">1%</span> — legendary 🐅🦅🦄🦾<br>
+      ★★★★  <span style="color:#ce93d8">7%</span> — rare skins/skills<br>
+      ★★★   <span style="color:#90caf9">92%</span> — coin reward
+    </div>
+    <p style="margin:10px 0 6px"><b style="color:#ffcc00">🎁 You get one FREE wish — guaranteed ★★★★!</b></p>
+    <p style="text-align:center; font-size:15px; margin-top:10px">
+      👉 Click the pulsing <b style="color:#ce93d8">✨ Wish</b> button (top right) to try it!
+    </p>
+  </div>
+  <button class="tiny" onclick="dismissIntro()" style="opacity:.6">Got it</button>
+</div>
+
+<!-- Wish popup -->
+<div id="wish" class="shopPopup">
+  <button class="closeX" onclick="closeWish()">✕</button>
+  <h3 data-i18n="makeAWish">✨ Make a Wish</h3>
+  <div class="wishCost" data-i18n="wishCost">Cost: 1 💎 per wish</div>
+
+  <div id="firstWishStage" style="display:none; text-align:center;">
+    <p style="font-size:15px; margin: 10px 0">🎁 Welcome gift! Claim your <b style="color:#ce93d8">guaranteed ★★★★</b> wish:</p>
+    <button class="start" onclick="claimFirstWish()" style="background:linear-gradient(90deg,#ce93d8,#7b1fa2);color:white">🎁 Claim Free 4★ Wish</button>
+  </div>
+  <div id="wishStage">
+    <div class="wishRates">
+      <div>★★★★★ <span style="color:#ffd54f">1%</span> — guaranteed at 70</div>
+      <div>★★★★ <span style="color:#ce93d8">7%</span> — guaranteed at 20</div>
+      <div>★★★ <span style="color:#90caf9">92%</span> — coins</div>
+      <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); font-size:12px">
+        Pity: ★★★★★ <b id="pity5Display" style="color:#ffd54f">0</b>/70 · ★★★★ <b id="pity4Display" style="color:#ce93d8">0</b>/20<br>
+        <span style="opacity:0.7; font-size:11px">10× pull guarantees at least one ★★★★</span>
+      </div>
+    </div>
+    <button class="start" onclick="makeWish()" data-i18n="wishBtn1">✨ Wish (1 💎)</button>
+    <button class="start" onclick="makeTenWish()" style="margin-left:6px;background:linear-gradient(90deg,#ce93d8,#7b1fa2);color:white" data-i18n="wishBtn10">✨✨ Wish 10× (10 💎)</button>
+
+    <hr style="margin:14px 0 10px; border:none; border-top:1px solid rgba(255,255,255,0.12)">
+    <div style="font-size:12px; opacity:0.7; margin-bottom:6px" data-i18n="outOfDiamonds">Out of diamonds?</div>
+    <div class="tradeBox">
+      <div class="tradeInfo">Trade <b id="tradeQty">1</b> 💎 — cost <b id="tradeCost">400</b> 💰</div>
+      <input type="range" id="tradeSlider" min="1" max="25" value="1" oninput="updateTradeUI()">
+      <button class="tiny" onclick="executeTrade()" style="background:linear-gradient(90deg,#ffaa00,#1e88e5);color:white;font-weight:bold;padding:6px 14px;margin-top:6px" data-i18n="tradeBtn">💱 Trade</button>
+    </div>
+  </div>
+
+  <div id="wishResult" style="display:none">
+    <div id="wishStars"></div>
+    <div id="wishItem"></div>
+    <div id="wishMessage"></div>
+    <button class="start" onclick="resetWishStage()" data-i18n="wishAgain">Wish again</button>
+  </div>
+</div>
+
+<!-- Compact start menu -->
+<div id="menu">
+  <h3 data-i18n="readyToFly">Ready to fly?</h3>
+  <div class="currentPick">
+    <span data-i18n="skinLabel">Skin</span>: <b id="currentSkin">🐤 Classic</b><br>
+    <span data-i18n="skillLabel">Skill</span>: <b id="currentSkill">🚫 None</b>
+    <div class="currentSkillDesc" id="currentSkillDesc">Pure skill</div>
+  </div>
+  <div class="stageRowWrap">
+    <div class="stageLabel">Stage:</div>
+    <div id="stageRow"></div>
+  </div>
+  <button class="start" onclick="startGame()" data-i18n="start">▶ Start</button>
+</div>
+
+<!-- Combined shop popup -->
+<div id="shop" class="shopPopup">
+  <button class="closeX" onclick="closeShop()">✕</button>
+
+  <div class="shopHeader">
+    <h3>🛒 <span data-i18n="shop">Shop</span></h3>
+    <div class="shopBalance">💰 <span id="shopCoins">0</span></div>
+  </div>
+
+  <div class="shopTabs">
+    <button class="tab active" data-tab="skins"  onclick="switchTab('skins')" data-i18n="skinsTab">🎨 Skins</button>
+    <button class="tab"        data-tab="skills" onclick="switchTab('skills')" data-i18n="skillsTab">⚡ Skills</button>
+  </div>
+
+  <div class="shopGrid" id="skinGrid"></div>
+  <div class="shopGrid" id="skillGrid" style="display:none"></div>
+
+</div>
+
+<!-- Game over -->
+<div id="overlay">
+  <h3 id="overTitle">Game Over</h3>
+  <p>Score: <span id="finalScore">0</span></p>
+  <p>Coins earned: 💰 <span id="coinsEarned">0</span></p>
+  <p id="diamondLine" style="display:none">💎 +1 Diamond!</p>
+  <p>Best: <span id="bestScore">0</span></p>
+  <button class="start" onclick="backToMenu()" data-i18n="continue">Continue</button>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const overlay = document.getElementById("overlay");
+const menu = document.getElementById("menu");
+const shop = document.getElementById("shop");
+const currentSkinEl = document.getElementById("currentSkin");
+const currentSkillEl = document.getElementById("currentSkill");
+const finalScoreEl = document.getElementById("finalScore");
+const coinsEarnedEl = document.getElementById("coinsEarned");
+const bestScoreEl = document.getElementById("bestScore");
+const overTitle = document.getElementById("overTitle");
+const hud = document.getElementById("hud");
+const coinCountEl = document.getElementById("coinCount");
+const toast = document.getElementById("toast");
+
+const W = canvas.width;
+const H = canvas.height;
+const GROUND_Y = H * 0.8;
+
+// ===== Shop catalog =====
+const SKIN_ITEMS = [
+  { id: "yellow",  name: "🐤 Classic",  price: 0,   desc: "The OG bird" },
+  { id: "penguin", name: "🐧 Penguin",  price: 40,  desc: "Tuxedo style" },
+  { id: "bee",     name: "🐝 Bee",      price: 70,  desc: "Buzz buzz" },
+  { id: "tiger",   name: "🐯 Tiger",    price: 120, desc: "Fierce stripes" },
+  { id: "rainbow", name: "🌈 Rainbow",  price: 200, desc: "All the colors" },
+  { id: "phoenix", name: "🔥 Phoenix",  price: 350, desc: "Flame trail" },
+  // ===== Wish-only legendary skins =====
+  { id: "realtiger", name: "🐅 Real Tiger", price: 0, desc: "★★★★★ Wish only", wishOnly: true, rarity: 5 },
+  { id: "realeagle", name: "🦅 Real Eagle", price: 0, desc: "★★★★★ Wish only", wishOnly: true, rarity: 5 },
+  { id: "unicorn",   name: "🦄 Unicorn",    price: 0, desc: "★★★★★ Wish only", wishOnly: true, rarity: 5 }
+];
+const SKILL_ITEMS = [
+  { id: "none",       name: "🚫 None",       price: 0,   desc: "Pure skill" },
+  { id: "shield",     name: "🛡️ Shield",     price: 30,  desc: "Survive 1 hit" },
+  { id: "extra",      name: "❤️ Extra Life", price: 50,  desc: "Respawn once after dying" },
+  { id: "dash",       name: "💨 Dash",       price: 100, desc: "Press Q to dash forward — invincible. 3× per run" },
+  // ===== Wish-only legendary skill =====
+  { id: "invincible", name: "🦾 Invincible", price: 0,   desc: "★★★★★ Press I — invincible 10s, 1× per run", wishOnly: true, rarity: 5 },
+  { id: "superdash",  name: "🚀 Super Dash", price: 0,   desc: "★★★★★ Press Q — 2s rainbow dash, 1× use. Recharges every 10s in any mode", wishOnly: true, rarity: 5 }
+];
+
+// ===== Persistent state =====
+let coins = parseInt(localStorage.getItem("flappyCoins") || "0");
+// One-time starter bonus: every new player gets 100 coins
+const starterBonusJustGiven = !localStorage.getItem("flappyStarterBonus");
+if (starterBonusJustGiven) {
+  coins += 100;
+  localStorage.setItem("flappyStarterBonus", "1");
+  localStorage.setItem("flappyCoins", coins);
+}
+let diamonds = parseInt(localStorage.getItem("flappyDiamonds") || "0");
+let owned = JSON.parse(localStorage.getItem("flappyOwned") || '["yellow","none"]');
+let selectedSkin = localStorage.getItem("flappySkin") || "yellow";
+let selectedSkill = localStorage.getItem("flappySkill") || "none";
+// Fallback if the saved skin/skill id no longer exists in the catalog
+if (!SKIN_ITEMS.find(s => s.id === selectedSkin))   selectedSkin  = "yellow";
+if (!SKILL_ITEMS.find(s => s.id === selectedSkill)) selectedSkill = "none";
+
+// ===== Sound system =====
+let audioCtx = null;
+function flappyVol01() {
+  return Math.max(0, Math.min(100, parseInt(localStorage.getItem("flappyVolume") || "50", 10))) / 100;
+}
+/* Kept for legacy UI references (toggleSound / settingsSoundBtn) — volume slider is the real control */
+let soundEnabled = flappyVol01() > 0;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+}
+function tone(freq, dur, type = "square", vol = 0.06) {
+  const v = vol * flappyVol01();
+  if (v <= 0) return;
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(v, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(t); o.stop(t + dur);
+}
+function slide(f1, f2, dur, type = "sine", vol = 0.06) {
+  const v = vol * flappyVol01();
+  if (v <= 0) return;
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(f1, t);
+  o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(v, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(t); o.stop(t + dur);
+}
+const SFX = {
+  flap:    () => slide(380, 480, 0.08, "square", 0.05),
+  score:   () => tone(900, 0.08, "sine", 0.07),
+  hit:     () => slide(400, 80, 0.35, "sawtooth", 0.13),
+  shoot:   () => tone(1200, 0.04, "square", 0.06),
+  bossIn:  () => slide(220, 60, 0.6, "sawtooth", 0.18),
+  bossHit: () => tone(180, 0.1, "square", 0.1),
+  win:     () => {
+    tone(523, 0.1, "sine", 0.1);
+    setTimeout(() => tone(659, 0.1, "sine", 0.1), 110);
+    setTimeout(() => tone(784, 0.25, "sine", 0.12), 220);
+  },
+  level:   () => {
+    tone(660, 0.1, "sine", 0.08);
+    setTimeout(() => tone(880, 0.14, "sine", 0.08), 100);
+  },
+  dash:    () => slide(700, 1300, 0.12, "sawtooth", 0.06),
+  shield:  () => tone(1400, 0.12, "sine", 0.08),
+  extra:   () => {
+    // Heart-revive: low thump → bright rise
+    tone(200, 0.08, "sine", 0.1);
+    setTimeout(() => tone(440, 0.1, "sine", 0.1), 90);
+    setTimeout(() => tone(880, 0.2, "sine", 0.08), 200);
+  },
+  invincible: () => {
+    // Epic 4-note ascent
+    tone(440, 0.08, "sine", 0.08);
+    setTimeout(() => tone(660, 0.08, "sine", 0.09), 80);
+    setTimeout(() => tone(880, 0.08, "sine", 0.1),  160);
+    setTimeout(() => tone(1320, 0.3, "triangle", 0.1), 240);
+  },
+  buy:     () => { tone(700, 0.07, "sine", 0.07); setTimeout(()=>tone(1100, 0.1, "sine", 0.08), 70); },
+  trade:   () => { tone(900, 0.08, "sine", 0.08); setTimeout(()=>tone(1300, 0.12, "sine", 0.09), 80); },
+  wish3:   () => tone(523, 0.2, "sine", 0.08),
+  wish4:   () => { tone(523,0.1,"sine",0.08); setTimeout(()=>tone(784,0.2,"sine",0.1),100); },
+  wish5:   () => {
+    tone(659,0.08,"sine",0.1);
+    setTimeout(()=>tone(880,0.08,"sine",0.1),90);
+    setTimeout(()=>tone(1047,0.25,"sine",0.12),180);
+    setTimeout(()=>tone(1568,0.2,"triangle",0.08),360);
+  },
+  click:   () => tone(1000, 0.04, "sine", 0.04)
+};
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem("flappySound", soundEnabled ? "on" : "off");
+  const sBtn = document.getElementById("settingsSoundBtn");
+  if (sBtn) {
+    sBtn.textContent = soundEnabled ? t("on") : t("off");
+    sBtn.classList.toggle("on",  soundEnabled);
+    sBtn.classList.toggle("off", !soundEnabled);
+  }
+  if (soundEnabled) SFX.click();
+}
+
+// ===== Internationalization =====
+let currentLang = localStorage.getItem("flappyLang") || "en";
+const I18N = {
+  en: {
+    settings: "Settings", sound: "Sound", language: "Language", name: "Name",
+    on: "On", off: "Off",
+    shop: "Shop", wish: "Wish", records: "Records",
+    readyToFly: "Ready to fly?", skinLabel: "Skin", skillLabel: "Skill",
+    start: "▶ Start", continue: "Continue",
+    stage: "Stage", scoreToBoss: "score to face boss",
+    bossLabel: "Boss", infiniteLabel: "Infinite",
+    pause: "Paused", pressP: "Press P to resume",
+    // Canvas / hud / labels
+    tapToStart: "Tap or press SPACE to start",
+    gameOver: "Game Over", newBest: "🏆 New Best!", bossDefeated: "🏆 BOSS DEFEATED!",
+    scoreLabel: "Score", coinsEarned: "Coins earned", bestLabel: "Best",
+    // Records popup
+    topBoss: "👹 Top 5 — Boss Mode", topInf: "♾️ Top 5 — Infinite Mode",
+    noBossRuns: "No boss runs yet — go fight!", noInfRuns: "No infinite runs yet",
+    currentBalance: "💼 Current Balance",
+    coinsNow: "💰 Coins now", diamondsNow: "💎 Diamonds now",
+    lifetimeTotals: "📈 Lifetime Totals",
+    gamesPlayed: "🎮 Games played",
+    totalCoinsEarned: "💰 Total coins earned",
+    totalDiamondsEarned: "💎 Total diamonds earned",
+    bossesDefeated: "👹 Bosses defeated",
+    onlineCount: "🌐 Online — {n} player{s} worldwide",
+    offlineMode: "🔌 Offline — local scores only",
+    // Shop
+    skinsTab: "🎨 Skins", skillsTab: "⚡ Skills", wishTab: "✨ Wish",
+    statusEquipped: "✓ Equipped", statusEquip: "Equip", statusWishOnly: "✨ Wish only",
+    // Wish popup
+    makeAWish: "✨ Make a Wish", wishCost: "Cost: 1 💎 per wish",
+    rate5: "exclusive items", rate4: "rare items", rate3: "coins",
+    wishBtn1: "✨ Wish (1 💎)", wishBtn10: "✨✨ Wish 10× (10 💎)",
+    outOfDiamonds: "Out of diamonds?",
+    tradeInfo: "Trade", tradeCost: "cost",
+    tradeBtn: "💱 Trade",
+    wishAgain: "Wish again",
+    // HUD
+    hudReady: "Ready", hudUsed: "Used", hudFShoot: "🔫 F to shoot",
+    hudRefresh: "♻️ Refresh",
+
+    /* Skins */
+    skin_yellow_name:    "🐤 Classic",     skin_yellow_desc:    "The OG bird",
+    skin_penguin_name:   "🐧 Penguin",     skin_penguin_desc:   "Tuxedo style",
+    skin_bee_name:       "🐝 Bee",         skin_bee_desc:       "Buzz buzz",
+    skin_tiger_name:     "🐯 Tiger",       skin_tiger_desc:     "Fierce stripes",
+    skin_rainbow_name:   "🌈 Rainbow",     skin_rainbow_desc:   "All the colors",
+    skin_phoenix_name:   "🔥 Phoenix",     skin_phoenix_desc:   "Flame trail",
+    skin_realtiger_name: "🐅 Real Tiger",  skin_realtiger_desc: "★★★★★ Wish only",
+    skin_realeagle_name: "🦅 Real Eagle",  skin_realeagle_desc: "★★★★★ Wish only",
+    skin_unicorn_name:   "🦄 Unicorn",     skin_unicorn_desc:   "★★★★★ Wish only",
+
+    /* Skills */
+    skill_none_name:       "🚫 None",        skill_none_desc:       "Pure skill",
+    skill_shield_name:     "🛡️ Shield",      skill_shield_desc:     "Survive 1 hit",
+    skill_extra_name:      "❤️ Extra Life",  skill_extra_desc:      "Respawn once after dying",
+    skill_dash_name:       "💨 Dash",        skill_dash_desc:       "Press Q to dash forward — invincible. 3× per run",
+    skill_invincible_name: "🦾 Invincible",  skill_invincible_desc: "★★★★★ Press I — invincible 10s, 1× per run",
+    skill_superdash_name:  "🚀 Super Dash",  skill_superdash_desc:  "★★★★★ Press Q — 2s rainbow dash, 1× use. Recharges every 10s in any mode",
+
+    /* Stages */
+    stage_0_name: "🌲 Forest",
+    stage_1_name: "⛈️ Storm",
+    stage_2_name: "🌌 Void"
+  },
+  zh: {
+    settings: "設定", sound: "音效", language: "語言", name: "名字",
+    on: "開", off: "關",
+    shop: "商店", wish: "祈願", records: "紀錄",
+    readyToFly: "準備起飛?", skinLabel: "造型", skillLabel: "技能",
+    start: "▶ 開始", continue: "繼續",
+    stage: "關卡", scoreToBoss: "魔王分數",
+    bossLabel: "魔王", infiniteLabel: "無限",
+    pause: "暫停中", pressP: "按 P 繼續",
+    tapToStart: "點擊或按 SPACE 開始",
+    gameOver: "遊戲結束", newBest: "🏆 新紀錄!", bossDefeated: "🏆 打敗魔王!",
+    scoreLabel: "分數", coinsEarned: "獲得金幣", bestLabel: "最佳",
+    topBoss: "👹 魔王模式 前 5 名", topInf: "♾️ 無限模式 前 5 名",
+    noBossRuns: "還沒打過魔王 — 去戰鬥吧!", noInfRuns: "還沒玩過無限模式",
+    currentBalance: "💼 目前餘額",
+    coinsNow: "💰 目前金幣", diamondsNow: "💎 目前鑽石",
+    lifetimeTotals: "📈 累計數據",
+    gamesPlayed: "🎮 遊玩次數",
+    totalCoinsEarned: "💰 累計賺得金幣",
+    totalDiamondsEarned: "💎 累計賺得鑽石",
+    bossesDefeated: "👹 擊敗魔王",
+    onlineCount: "🌐 線上 — 全球 {n} 位玩家",
+    offlineMode: "🔌 離線中 — 僅顯示本機",
+    skinsTab: "🎨 造型", skillsTab: "⚡ 技能", wishTab: "✨ 祈願",
+    statusEquipped: "✓ 已裝備", statusEquip: "裝備", statusWishOnly: "✨ 限祈願",
+    makeAWish: "✨ 許願", wishCost: "每次 1 💎",
+    rate5: "稀有物品", rate4: "高級物品", rate3: "金幣",
+    wishBtn1: "✨ 祈願 (1 💎)", wishBtn10: "✨✨ 十連 (10 💎)",
+    outOfDiamonds: "鑽石不夠?",
+    tradeInfo: "交換", tradeCost: "花費",
+    tradeBtn: "💱 交換",
+    wishAgain: "再許一次",
+    hudReady: "就緒", hudUsed: "已用", hudFShoot: "🔫 F 射擊",
+    hudRefresh: "♻️ 重置",
+
+    /* Skins */
+    skin_yellow_name:    "🐤 經典",        skin_yellow_desc:    "經典款小鳥",
+    skin_penguin_name:   "🐧 企鵝",        skin_penguin_desc:   "燕尾服風格",
+    skin_bee_name:       "🐝 蜜蜂",        skin_bee_desc:       "嗡嗡嗡",
+    skin_tiger_name:     "🐯 老虎",        skin_tiger_desc:     "兇猛條紋",
+    skin_rainbow_name:   "🌈 彩虹",        skin_rainbow_desc:   "所有顏色",
+    skin_phoenix_name:   "🔥 鳳凰",        skin_phoenix_desc:   "火焰拖尾",
+    skin_realtiger_name: "🐅 真虎",        skin_realtiger_desc: "★★★★★ 限祈願",
+    skin_realeagle_name: "🦅 真鷹",        skin_realeagle_desc: "★★★★★ 限祈願",
+    skin_unicorn_name:   "🦄 獨角獸",      skin_unicorn_desc:   "★★★★★ 限祈願",
+
+    /* Skills */
+    skill_none_name:       "🚫 無",         skill_none_desc:       "純技術",
+    skill_shield_name:     "🛡️ 護盾",       skill_shield_desc:     "可擋 1 次傷害",
+    skill_extra_name:      "❤️ 額外生命",   skill_extra_desc:      "死亡後重生 1 次",
+    skill_dash_name:       "💨 衝刺",       skill_dash_desc:       "按 Q 向前衝刺 — 無敵。每局 3 次",
+    skill_invincible_name: "🦾 無敵",       skill_invincible_desc: "★★★★★ 按 I — 無敵 10 秒,每局 1 次",
+    skill_superdash_name:  "🚀 超級衝刺",   skill_superdash_desc:  "★★★★★ 按 Q — 2 秒彩虹衝刺,每 10 秒充能 1 次",
+
+    /* Stages */
+    stage_0_name: "🌲 森林",
+    stage_1_name: "⛈️ 暴風",
+    stage_2_name: "🌌 虛空"
+  }
+};
+function t(key) { return (I18N[currentLang] && I18N[currentLang][key]) || I18N.en[key] || key; }
+
+/* Translate item name/desc (works for skins + skills) with fallback to .name/.desc */
+function itemName(item) {
+  if (!item) return "";
+  const sk = t(`skin_${item.id}_name`);
+  if (sk !== `skin_${item.id}_name`) return sk;
+  const sl = t(`skill_${item.id}_name`);
+  if (sl !== `skill_${item.id}_name`) return sl;
+  return item.name || "";
+}
+function itemDesc(item) {
+  if (!item) return "";
+  const sk = t(`skin_${item.id}_desc`);
+  if (sk !== `skin_${item.id}_desc`) return sk;
+  const sl = t(`skill_${item.id}_desc`);
+  if (sl !== `skill_${item.id}_desc`) return sl;
+  return item.desc || "";
+}
+function stageName(idx) {
+  const k = `stage_${idx}_name`;
+  const r = t(k);
+  return r !== k ? r : (STAGES[idx] && STAGES[idx].name) || "";
+}
+
+window.addEventListener("storage", e => {
+  if (e.key === "flappyLang" && e.newValue && e.newValue !== currentLang) {
+    currentLang = e.newValue;
+    if (typeof applyLanguage === "function") applyLanguage();
+  }
+});
+
+function setLanguage(lang) {
+  currentLang = lang;
+  localStorage.setItem("flappyLang", lang);
+  document.querySelectorAll(".langBtn").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
+  applyLanguage();
+  SFX.click();
+}
+
+function applyLanguage() {
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  // Refresh dynamic UI that uses static text
+  updateModeButton();
+  buildStageSelector();
+  buildShop();
+  const recs = document.getElementById("records");
+  if (recs && recs.style.display === "block") buildRecords();
+  const sBtn = document.getElementById("settingsSoundBtn");
+  if (sBtn) sBtn.textContent = soundEnabled ? t("on") : t("off");
+}
+
+function openSettings() {
+  document.getElementById("settings").style.display = "block";
+  showBackdrop();
+  const sBtn = document.getElementById("settingsSoundBtn");
+  if (sBtn) {
+    sBtn.textContent = soundEnabled ? t("on") : t("off");
+    sBtn.classList.toggle("on",  soundEnabled);
+    sBtn.classList.toggle("off", !soundEnabled);
+  }
+  const nameI = document.getElementById("nameInput");
+  if (nameI) nameI.value = playerName;
+  document.querySelectorAll(".langBtn").forEach(b => b.classList.toggle("active", b.dataset.lang === currentLang));
+}
+
+function isNameTaken(name) {
+  if (!firebaseReady || !globalScoresLoaded) return false;
+  const lower = name.toLowerCase();
+  return globalScores.some(s =>
+    s._id !== playerId && s.name && s.name.toLowerCase() === lower
+  );
+}
+
+function setName(name) {
+  const trimmed = (name || "").trim().slice(0, 14);
+  if (!trimmed) { showToast("Name cannot be empty", "rgba(180,40,40,0.95)"); return false; }
+  if (isNameTaken(trimmed)) {
+    showToast(`❌ "${trimmed}" is taken — try another!`, "rgba(180,40,40,0.95)");
+    return false;
+  }
+  playerName = trimmed;
+  localStorage.setItem("flappyName", playerName);
+  localStorage.setItem("flappyNameSet", "1");
+  syncScoreToFirebase();
+  SFX.click();
+  return true;
+}
+
+function requireName() {
+  if (localStorage.getItem("flappyNameSet")) return;
+  // Wait briefly for Firebase to load existing names before showing the modal
+  const show = () => {
+    document.getElementById("nameRequired").style.display = "block";
+    showBackdrop();
+    setTimeout(() => {
+      const input = document.getElementById("firstNameInput");
+      if (input) { input.focus(); input.value = ""; }
+    }, 100);
+  };
+  if (globalScoresLoaded || !firebaseReady) {
+    show();
+  } else {
+    // Poll briefly for Firebase to load (max ~2s)
+    let tries = 0;
+    const poll = setInterval(() => {
+      tries++;
+      if (globalScoresLoaded || tries > 20) { clearInterval(poll); show(); }
+    }, 100);
+  }
+}
+
+function confirmFirstName() {
+  const input = document.getElementById("firstNameInput");
+  const status = document.getElementById("nameStatus");
+  const val = input.value.trim();
+  if (!val) {
+    status.innerHTML = '<span style="color:#ff7043">❌ Please enter a name</span>';
+    return;
+  }
+  if (isNameTaken(val)) {
+    status.innerHTML = `<span style="color:#ff7043">❌ "${val}" is taken — try another!</span>`;
+    return;
+  }
+  // Save name
+  playerName = val.slice(0, 14);
+  localStorage.setItem("flappyName", playerName);
+  localStorage.setItem("flappyNameSet", "1");
+  document.getElementById("nameRequired").style.display = "none";
+  hideBackdrop();
+  syncScoreToFirebase();
+  SFX.buy();
+  showToast(`👋 Welcome, ${playerName}!`, "rgba(40,180,40,0.95)");
+  // Continue to intro
+  showFirstTimeIntro();
+}
+function closeSettings() {
+  document.getElementById("settings").style.display = "none";
+  hideBackdrop();
+}
+
+// Player identity + friends
+let playerName = localStorage.getItem("flappyName") || "Player";
+// friendRecords kept as a local cache (deprecated by Firebase but harmless)
+let friendRecords = JSON.parse(localStorage.getItem("flappyFriends") || "[]");
+
+// Unique player ID (per browser)
+let playerId = localStorage.getItem("flappyPlayerId");
+if (!playerId) {
+  playerId = "p_" + Math.random().toString(36).slice(2, 12);
+  localStorage.setItem("flappyPlayerId", playerId);
+}
+
+// ===== Firebase Realtime Database =====
+const firebaseConfig = {
+  apiKey: "AIzaSyBx1dPrUE5POsZXa60QAk75p4jfdVvlX_0",
+  authDomain: "flappy-bird-25127.firebaseapp.com",
+  databaseURL: "https://flappy-bird-25127-default-rtdb.firebaseio.com",
+  projectId: "flappy-bird-25127",
+  storageBucket: "flappy-bird-25127.firebasestorage.app",
+  messagingSenderId: "445319714544",
+  appId: "1:445319714544:web:a95e2dd3087cc0eeaed435"
+};
+let firebaseReady = false;
+let scoresRef = null;
+let globalScores = []; // [{name, bestBoss, bestInfinite, _id}]
+let globalScoresLoaded = false;
+
+try {
+  firebase.initializeApp(firebaseConfig);
+  scoresRef = firebase.database().ref("scores");
+  firebaseReady = true;
+  // Live listener — auto-refresh records when anyone updates
+  scoresRef.on("value", snapshot => {
+    globalScores = [];
+    snapshot.forEach(child => {
+      const data = child.val();
+      if (data && data.name) globalScores.push({ ...data, _id: child.key });
+    });
+    globalScoresLoaded = true;
+    const recs = document.getElementById("records");
+    if (recs && recs.style.display === "block") buildRecords();
+  }, err => { console.error("Firebase read error:", err); globalScoresLoaded = true; });
+} catch (e) {
+  console.error("Firebase init failed:", e);
+}
+
+function syncScoreToFirebase() {
+  if (!firebaseReady || !scoresRef) return;
+  const myBoss = getMyBestBoss();
+  const myInf  = getMyBestInfinite();
+  if (myBoss === 0 && myInf === 0) return;
+  scoresRef.child(playerId).set({
+    name: playerName,
+    bestBoss: myBoss,
+    bestInfinite: myInf,
+    updatedAt: Date.now()
+  }).catch(err => console.error("Firebase write failed:", err));
+}
+
+// Wish pity counters
+let pity5 = parseInt(localStorage.getItem("flappyPity5") || "0");
+let pity4 = parseInt(localStorage.getItem("flappyPity4") || "0");
+const PITY_5_MAX = 70;
+const PITY_4_MAX = 20;
+
+// Stats
+let stats = JSON.parse(localStorage.getItem("flappyStats") || '{}');
+stats.games         = stats.games         || 0;
+stats.totalCoins    = stats.totalCoins    || 0;
+stats.totalDiamonds = stats.totalDiamonds || 0;
+stats.bossesBeaten  = stats.bossesBeaten  || 0;
+stats.highScores    = stats.highScores    || []; // [{score, won, date}]
+function save() {
+  localStorage.setItem("flappyCoins", coins);
+  localStorage.setItem("flappyDiamonds", diamonds);
+  localStorage.setItem("flappyOwned", JSON.stringify(owned));
+  localStorage.setItem("flappySkin", selectedSkin);
+  localStorage.setItem("flappySkill", selectedSkill);
+  localStorage.setItem("flappyStats", JSON.stringify(stats));
+  localStorage.setItem("flappyPity5", pity5);
+  localStorage.setItem("flappyPity4", pity4);
+}
+
+function recordRun(finalScore, won) {
+  stats.games++;
+  stats.totalCoins += coinsThisRun;
+  if (won) {
+    stats.bossesBeaten++;
+    stats.totalDiamonds += STAGES[selectedStage].reward;
+  }
+  // Save run with score + mode so we can split rankings later
+  stats.highScores.push({
+    score:    finalScore,
+    coins:    coinsThisRun,
+    diamonds: won ? 1 : 0,
+    mode:     gameMode,
+    won,
+    date:     new Date().toLocaleDateString()
+  });
+  // Keep a larger pool so both Boss and Infinite top-5 can be derived
+  stats.highScores.sort((a, b) => b.score - a.score);
+  stats.highScores = stats.highScores.slice(0, 30);
+  save();
+  syncScoreToFirebase();
+}
+
+function openRecords() {
+  buildRecords();
+  document.getElementById("records").style.display = "block";
+  showBackdrop();
+}
+function closeRecords() {
+  document.getElementById("records").style.display = "none";
+  hideBackdrop();
+}
+
+function buildRecords() {
+  const renderList = (entries, emptyMsg) => entries.length
+    ? entries.map((h, i) => {
+        const meCls = h.isMe ? ' style="color:#ffd54f;font-weight:bold"' : "";
+        const tag = h.isMe ? "⭐" : "👤";
+        return `<div class="recRow"${meCls}>
+          <span>${i + 1}. ${tag} ${h.name} — <b>${h.score}</b></span>
+        </div>`;
+      }).join("")
+    : `<div style="opacity:.6;text-align:center;padding:8px">${emptyMsg}</div>`;
+
+  // === Build leaderboards from Firebase if available, else local fallback ===
+  let bossList, infList;
+  if (firebaseReady && globalScores.length > 0) {
+    bossList = globalScores
+      .filter(s => (s.bestBoss || 0) > 0)
+      .map(s => ({ name: s.name, score: s.bestBoss, isMe: s._id === playerId }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+    infList = globalScores
+      .filter(s => (s.bestInfinite || 0) > 0)
+      .map(s => ({ name: s.name, score: s.bestInfinite, isMe: s._id === playerId }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+  } else {
+    const myBoss = getMyBestBoss();
+    const myInf  = getMyBestInfinite();
+    bossList = [{ name: playerName, score: myBoss, isMe: true }].filter(e => e.score > 0);
+    infList  = [{ name: playerName, score: myInf,  isMe: true }].filter(e => e.score > 0);
+  }
+
+  const onlineStatus = firebaseReady
+    ? `<div style="text-align:center;font-size:11px;color:#4caf50;margin-bottom:8px">${t("onlineCount").replace("{n}", globalScores.length).replace("{s}", globalScores.length === 1 ? "" : "s")}</div>`
+    : `<div style="text-align:center;font-size:11px;color:#ff9800;margin-bottom:8px">${t("offlineMode")}</div>`;
+  const friendsLine = "";
+
+  document.getElementById("recordsContent").innerHTML = `
+    ${onlineStatus}
+    <h4>${t("topBoss")}</h4>
+    ${renderList(bossList, t("noBossRuns"))}
+    <h4>${t("topInf")}</h4>
+    ${renderList(infList, t("noInfRuns"))}
+    ${friendsLine}
+    <h4>${t("currentBalance")}</h4>
+    <div class="recRow"><span>${t("coinsNow")}</span><b>${coins}</b></div>
+    <div class="recRow"><span>${t("diamondsNow")}</span><b>${diamonds}</b></div>
+    <h4>${t("lifetimeTotals")}</h4>
+    <div class="recRow"><span>${t("gamesPlayed")}</span><b>${stats.games}</b></div>
+    <div class="recRow"><span>${t("totalCoinsEarned")}</span><b>${stats.totalCoins}</b></div>
+    <div class="recRow"><span>${t("totalDiamondsEarned")}</span><b>${stats.totalDiamonds}</b></div>
+    <div class="recRow"><span>${t("bossesDefeated")}</span><b>${stats.bossesBeaten}</b></div>
+  `;
+}
+
+function getMyBestBoss() {
+  const bossScores = stats.highScores.filter(h => (h.mode || "story") !== "infinite").map(h => h.score);
+  return bossScores.length ? Math.max(...bossScores) : 0;
+}
+function getMyBestInfinite() {
+  const inf = stats.highScores.filter(h => h.mode === "infinite").map(h => h.score);
+  return inf.length ? Math.max(...inf) : 0;
+}
+
+function shareMyStats() {
+  if (!playerName || playerName === "Player") {
+    showToast("⚙️ Set your name in Settings first!", "rgba(180,40,40,0.95)");
+    openSettings();
+    return;
+  }
+  const data = {
+    name: playerName,
+    bestBoss: getMyBestBoss(),
+    bestInfinite: getMyBestInfinite(),
+    date: new Date().toLocaleDateString()
+  };
+  const code = btoa(JSON.stringify(data));
+  const message = `🐤 ${playerName}'s Gacha Flyer best scores:
+👹 Boss mode: ${data.bestBoss}
+♾️ Infinite mode: ${data.bestInfinite}
+
+Paste this code into your game to add me to your leaderboard:
+${code}`;
+
+  navigator.clipboard.writeText(message).then(() => {
+    showToast("📤 Best scores copied! Send to a friend.", "rgba(20,150,200,0.95)");
+  }).catch(() => {
+    prompt("Copy this and send to a friend:", message);
+  });
+}
+
+function compareWithFriend() {
+  const input = prompt("Paste your friend's code (the long line at the bottom of their message):");
+  if (!input) return;
+  try {
+    const code = input.trim().split("\n").map(l => l.trim()).filter(Boolean).pop();
+    const friend = JSON.parse(atob(code));
+    if (!friend.name || (friend.bestBoss === undefined && friend.bestInfinite === undefined)) {
+      throw new Error("missing fields");
+    }
+    // Replace existing entry with same name, else add
+    const idx = friendRecords.findIndex(f => f.name === friend.name);
+    if (idx >= 0) friendRecords[idx] = friend;
+    else friendRecords.push(friend);
+    localStorage.setItem("flappyFriends", JSON.stringify(friendRecords));
+    SFX.buy();
+    showToast(`✅ Added ${friend.name} to your leaderboard!`, "rgba(40,180,40,0.95)");
+    buildRecords();
+  } catch (e) {
+    showToast("❌ Invalid code — try again", "rgba(180,40,40,0.95)");
+  }
+}
+
+function clearFriends() {
+  if (!friendRecords.length) return;
+  if (!confirm(`Remove all ${friendRecords.length} friend(s) from your leaderboard?`)) return;
+  friendRecords = [];
+  localStorage.setItem("flappyFriends", "[]");
+  buildRecords();
+  SFX.click();
+}
+
+function updateSkillCorner() {
+  const item = SKILL_ITEMS.find(s => s.id === selectedSkill);
+  document.getElementById("cornerSkillName").textContent = item ? itemName(item) : t("skill_none_name");
+  document.getElementById("cornerSkillDesc").textContent = item ? itemDesc(item) : "";
+}
+
+function showToast(msg, color) {
+  toast.textContent = msg;
+  toast.style.background = color || "rgba(0,0,0,0.85)";
+  toast.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.remove("show"), 1600);
+}
+
+function showBackdrop() { document.getElementById("backdrop").classList.add("show"); }
+function hideBackdrop() { document.getElementById("backdrop").classList.remove("show"); }
+function closeAllPopups() {
+  // Don't allow accidental closing of mandatory modals
+  if (document.getElementById("nameRequired").style.display === "block") return;
+  if (document.getElementById("intro").style.display === "block") return;
+  shop.style.display = "none";
+  document.getElementById("wish").style.display = "none";
+  document.getElementById("records").style.display = "none";
+  document.getElementById("settings").style.display = "none";
+  hideBackdrop();
+  buildShop();
+}
+
+function openShop()  { switchTab("skins"); shop.style.display = "block"; showBackdrop(); }
+function closeShop() { shop.style.display = "none"; hideBackdrop(); buildShop(); }
+
+// ===== First-time intro =====
+function isFirstTime() { return !localStorage.getItem("flappyFirstWishUsed"); }
+
+function updateWishButtonPulse() {
+  const btn = document.getElementById("wishBtn");
+  if (!btn) return;
+  btn.classList.toggle("firstTime", isFirstTime());
+}
+
+function showFirstTimeIntro() {
+  if (!isFirstTime()) return;
+  document.getElementById("intro").style.display = "block";
+  showBackdrop();
+  updateWishButtonPulse();
+  // Celebrate the starter bonus
+  if (starterBonusJustGiven) {
+    SFX.trade();
+    setTimeout(() => SFX.win(), 300);
+    const flash = document.createElement("div");
+    flash.className = "screenFlash";
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 700);
+  }
+}
+
+function dismissIntro() {
+  document.getElementById("intro").style.display = "none";
+  // Keep backdrop only if other popups open; otherwise drop it
+  if (!isShopOpen()) hideBackdrop();
+  SFX.click();
+}
+
+function claimFirstWish() {
+  if (!isFirstTime()) return;
+  localStorage.setItem("flappyFirstWishUsed", "1");
+
+  // Hide the first-wish stage, stop pulsing the button
+  document.getElementById("firstWishStage").style.display = "none";
+  updateWishButtonPulse();
+
+  // Roll guaranteed 4★ — any non-wishOnly priced item
+  const rareSkins  = SKIN_ITEMS.filter(s => !s.wishOnly && s.price > 0);
+  const rareSkills = SKILL_ITEMS.filter(s => !s.wishOnly && s.price > 0);
+  const all = [...rareSkins, ...rareSkills];
+  const item = all[Math.floor(Math.random() * all.length)];
+  if (!owned.includes(item.id)) owned.push(item.id);
+  save();
+  buildShop();
+
+  // Show the result inside the wish popup
+  document.getElementById("wishStage").style.display = "none";
+  document.getElementById("wishResult").style.display = "block";
+  const starsEl = document.getElementById("wishStars");
+  starsEl.className = "star4 reveal-anim";
+  starsEl.textContent = "★★★★";
+  const itemEl = document.getElementById("wishItem");
+  itemEl.className = "reveal-anim";
+  const localName = itemName(item);
+  const m = localName.match(/^(\S+)\s+(.+)$/);
+  itemEl.textContent = m ? m[1] : localName;
+  document.getElementById("wishMessage").innerHTML =
+    `<b>${localName}</b><br>${itemDesc(item)}<br><span style="opacity:.7">🎁 Welcome gift — equip from 🛒 Shop!</span>`;
+  SFX.wish4();
+}
+
+// ===== Wish system =====
+function openWish() {
+  // Auto-dismiss intro if it's open
+  document.getElementById("intro").style.display = "none";
+  resetWishStage();
+  // First-time players see the free claim stage instead of normal wish UI
+  if (isFirstTime()) {
+    document.getElementById("wishStage").style.display = "none";
+    document.getElementById("firstWishStage").style.display = "block";
+  } else {
+    document.getElementById("firstWishStage").style.display = "none";
+  }
+  document.getElementById("wish").style.display = "block";
+  showBackdrop();
+}
+function closeWish() {
+  document.getElementById("wish").style.display = "none";
+  hideBackdrop();
+  buildShop();
+}
+function resetWishStage() {
+  document.getElementById("wishStage").style.display = "block";
+  document.getElementById("wishResult").style.display = "none";
+  updatePityDisplay();
+}
+
+function updatePityDisplay() {
+  const p5 = document.getElementById("pity5Display");
+  const p4 = document.getElementById("pity4Display");
+  if (p5) p5.textContent = pity5;
+  if (p4) p4.textContent = pity4;
+}
+
+function rollWish(force4 = false) {
+  const legendarySkins  = SKIN_ITEMS.filter(s => s.wishOnly);
+  const legendarySkills = SKILL_ITEMS.filter(s => s.wishOnly);
+  const rareSkins  = SKIN_ITEMS.filter(s => !s.wishOnly && s.price > 0);
+  const rareSkills = SKILL_ITEMS.filter(s => !s.wishOnly && s.price > 0);
+
+  // 80% bias toward unowned items in the chosen tier
+  function pickWithUnownedBias(skins, skills) {
+    const all = [...skins, ...skills];
+    const unowned = all.filter(it => !owned.includes(it.id));
+    const pool = (unowned.length > 0 && Math.random() < 0.8) ? unowned : all;
+    const item = pool[Math.floor(Math.random() * pool.length)];
+    const type = skins.includes(item) ? "skin" : "skill";
+    return { item, type };
+  }
+
+  // Increment pity for this pull
+  pity5++;
+  pity4++;
+
+  // Pity ceilings: 70 = guaranteed 5★, 20 = guaranteed 4★
+  let rarity;
+  if (pity5 >= PITY_5_MAX) {
+    rarity = 5;
+  } else if (pity4 >= PITY_4_MAX || force4) {
+    rarity = 4;
+  } else {
+    const r = Math.random() * 100;
+    if (r < 1)      rarity = 5;
+    else if (r < 8) rarity = 4;
+    else            rarity = 3;
+  }
+
+  // Reset pity on hit (5★ also resets 4★)
+  if (rarity === 5) { pity5 = 0; pity4 = 0; }
+  else if (rarity === 4) { pity4 = 0; }
+
+  if (rarity === 5) return { rarity: 5, ...pickWithUnownedBias(legendarySkins, legendarySkills) };
+  if (rarity === 4) return { rarity: 4, ...pickWithUnownedBias(rareSkins, rareSkills) };
+  return { rarity: 3, coins: 15 + Math.floor(Math.random() * 36) };
+}
+
+function play5StarAnimation() {
+  // Screen flash
+  const flash = document.createElement("div");
+  flash.className = "screenFlash";
+  document.body.appendChild(flash);
+  setTimeout(() => flash.remove(), 700);
+
+  // Burst + flying stars
+  const burst = document.createElement("div");
+  burst.className = "fiveStarBurst";
+  for (let i = 0; i < 14; i++) {
+    const star = document.createElement("div");
+    star.className = "fiveStarStar";
+    star.textContent = "⭐";
+    const angle = (i / 14) * Math.PI * 2 + Math.random() * 0.3;
+    const dist = 220 + Math.random() * 120;
+    star.style.setProperty("--dx", Math.cos(angle) * dist + "px");
+    star.style.setProperty("--dy", Math.sin(angle) * dist + "px");
+    star.style.left = "50%";
+    star.style.top  = "50%";
+    burst.appendChild(star);
+  }
+  document.body.appendChild(burst);
+  setTimeout(() => burst.remove(), 1800);
+}
+
+function updateTradeUI() {
+  const qty = parseInt(document.getElementById("tradeSlider").value);
+  document.getElementById("tradeQty").textContent = qty;
+  document.getElementById("tradeCost").textContent = qty * 400;
+}
+
+function executeTrade() {
+  const qty = parseInt(document.getElementById("tradeSlider").value);
+  const cost = qty * 400;
+  if (coins < cost) {
+    showToast(`💰 Need ${cost} coins (have ${coins})`, "rgba(180,40,40,0.95)");
+    return;
+  }
+  if (!confirm(`Trade ${cost} 💰 for ${qty} 💎?`)) return;
+  coins -= cost;
+  diamonds += qty;
+  save();
+  buildShop();
+  SFX.trade();
+  showToast(`💎 +${qty} diamond${qty > 1 ? "s" : ""}!`, "rgba(20,150,200,0.95)");
+}
+
+function makeTenWish() {
+  if (diamonds < 10) {
+    showToast("💎 Need 10 diamonds!", "rgba(180,40,40,0.95)");
+    return;
+  }
+  diamonds -= 10;
+
+  const results = [];
+  let highestRarity = 3;
+  let totalCoins = 0;
+  let hasGoodPull = false;
+  for (let i = 0; i < 10; i++) {
+    // On the last roll, if nothing 4★+ was hit yet, force a 4★
+    const forceFour = (i === 9 && !hasGoodPull);
+    const r = rollWish(forceFour);
+    if (r.rarity >= 4) hasGoodPull = true;
+    results.push(r);
+    if (r.rarity > highestRarity) highestRarity = r.rarity;
+    if (r.rarity === 3) {
+      totalCoins += r.coins;
+    } else {
+      if (owned.includes(r.item.id)) {
+        const refund = r.rarity === 5 ? 200 : 80;
+        totalCoins += refund;
+      } else {
+        owned.push(r.item.id);
+      }
+    }
+  }
+  coins += totalCoins;
+  save();
+  buildShop();
+
+  // Render grid of 10 results
+  document.getElementById("wishStage").style.display = "none";
+  const resultEl = document.getElementById("wishResult");
+  resultEl.style.display = "block";
+
+  const starsEl = document.getElementById("wishStars");
+  starsEl.className = `star${highestRarity} reveal-anim`;
+  starsEl.textContent = "★".repeat(highestRarity) + " 10× Pull";
+
+  const grid = results.map(r => {
+    let icon, name;
+    if (r.rarity === 3) {
+      icon = "💰";
+      name = `+${r.coins}`;
+    } else {
+      const localN = itemName(r.item);
+      const m = localN.match(/^(\S+)\s+(.+)$/);
+      icon = m ? m[1] : localN;
+      name = m ? m[2] : "";
+    }
+    return `<div class="wishGridItem s${r.rarity}">
+      <div class="wishGridIcon">${icon}</div>
+      <div class="wishGridName">${name}</div>
+      <div class="wishGridStars star${r.rarity}">${"★".repeat(r.rarity)}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("wishItem").innerHTML = `<div class="wishGrid">${grid}</div>`;
+  document.getElementById("wishItem").className = "";
+  document.getElementById("wishMessage").innerHTML = `+${totalCoins} coins from this pull`;
+  if (highestRarity === 5) { SFX.wish5(); play5StarAnimation(); }
+  else if (highestRarity === 4) SFX.wish4();
+  else SFX.wish3();
+}
+
+function makeWish() {
+  if (diamonds < 1) {
+    showToast("💎 Not enough diamonds!", "rgba(180,40,40,0.95)");
+    return;
+  }
+  diamonds--;
+
+  const result = rollWish();
+
+  // Apply reward
+  let icon = "", message = "", starClass = `star${result.rarity}`, stars = "★".repeat(result.rarity);
+
+  if (result.rarity === 3) {
+    coins += result.coins;
+    icon = "💰";
+    message = `+${result.coins} coins`;
+  } else {
+    if (owned.includes(result.item.id)) {
+      // Duplicate → consolation coins
+      const refund = result.rarity === 5 ? 200 : 80;
+      coins += refund;
+      const rln = itemName(result.item);
+      icon = rln.split(" ")[0];
+      message = `${rln}<br><span style="opacity:.7">Already owned — +${refund} coins</span>`;
+    } else {
+      owned.push(result.item.id);
+      const rln = itemName(result.item);
+      icon = rln.split(" ")[0];
+      message = `<b>${rln}</b><br>${itemDesc(result.item).replace("★★★★★ ","")}<br><span style="opacity:.7">Equip from 🛒 Shop</span>`;
+    }
+  }
+
+  save();
+  buildShop();
+
+  // Show result
+  document.getElementById("wishStage").style.display = "none";
+  const resultEl = document.getElementById("wishResult");
+  resultEl.style.display = "block";
+  const starsEl = document.getElementById("wishStars");
+  starsEl.className = starClass + " reveal-anim";
+  starsEl.textContent = stars;
+  const itemEl = document.getElementById("wishItem");
+  itemEl.className = "reveal-anim";
+  itemEl.textContent = icon;
+  document.getElementById("wishMessage").innerHTML = message;
+  if (result.rarity === 5) { SFX.wish5(); play5StarAnimation(); }
+  else if (result.rarity === 4) SFX.wish4();
+  else SFX.wish3();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll(".tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.tab === tab)
+  );
+  document.getElementById("skinGrid").style.display  = tab === "skins"  ? "grid" : "none";
+  document.getElementById("skillGrid").style.display = tab === "skills" ? "grid" : "none";
+}
+
+function makeCard(type, item) {
+  const isOwned = owned.includes(item.id);
+  const isSel   = (type === "skin" ? selectedSkin : selectedSkill) === item.id;
+
+  // Split first emoji from the rest of the (translated) name
+  const localName = itemName(item);
+  const m = localName.match(/^(\S+)\s+(.+)$/);
+  const icon = m ? m[1] : localName;
+  const name = m ? m[2] : "";
+
+  let status;
+  if (isSel)              status = `<span class="cardStatus status-equipped">${t("statusEquipped")}</span>`;
+  else if (isOwned)       status = `<span class="cardStatus status-equip">${t("statusEquip")}</span>`;
+  else if (item.wishOnly) status = `<span class="cardStatus status-locked" style="color:#ffd54f">${t("statusWishOnly")}</span>`;
+  else                    status = `<span class="cardStatus status-locked">🔒 ${item.price}💰</span>`;
+
+  const card = document.createElement("div");
+  card.className = "card" + (isSel ? " selected" : "") + (isOwned ? "" : " locked") + (item.wishOnly ? " wishOnly" : "");
+  card.innerHTML = `
+    <div class="cardIcon">${icon}</div>
+    <div class="cardName">${name}</div>
+    <div class="cardDesc">${itemDesc(item)}</div>
+    ${status}
+  `;
+  card.onclick = () => handlePick(type, item);
+  return card;
+}
+
+function buildShop() {
+  coinCountEl.textContent = coins;
+  const diamondCountEl = document.getElementById("diamondCount");
+  if (diamondCountEl) diamondCountEl.textContent = diamonds;
+  const shopCoinsEl = document.getElementById("shopCoins");
+  if (shopCoinsEl) shopCoinsEl.textContent = coins;
+
+  // Update menu "current pick" labels
+  const skinItem  = SKIN_ITEMS.find(s => s.id === selectedSkin);
+  const skillItem = SKILL_ITEMS.find(s => s.id === selectedSkill);
+  if (currentSkinEl)  currentSkinEl.textContent  = skinItem  ? skinItem.name  : "🐤 Classic";
+  if (currentSkillEl) currentSkillEl.textContent = skillItem ? skillItem.name : "🚫 None";
+  const currentSkillDescEl = document.getElementById("currentSkillDesc");
+  if (currentSkillDescEl) currentSkillDescEl.textContent = skillItem ? skillItem.desc : "";
+  updateSkillCorner();
+
+  const skinGrid = document.getElementById("skinGrid");
+  if (skinGrid) {
+    skinGrid.innerHTML = "";
+    SKIN_ITEMS.forEach(item => skinGrid.appendChild(makeCard("skin", item)));
+  }
+
+  const skillGrid = document.getElementById("skillGrid");
+  if (skillGrid) {
+    skillGrid.innerHTML = "";
+    SKILL_ITEMS.forEach(item => skillGrid.appendChild(makeCard("skill", item)));
+  }
+}
+
+function handlePick(type, item) {
+  if (!owned.includes(item.id)) {
+    if (item.wishOnly) {
+      showToast("✨ Get this from the Wish menu!", "rgba(120,80,180,0.95)");
+      return;
+    }
+    // Try to buy
+    if (coins >= item.price) {
+      if (confirm(`Buy ${itemName(item)} for ${item.price} 💰?`)) {
+        coins -= item.price;
+        owned.push(item.id);
+        if (type === "skin") selectedSkin = item.id;
+        else selectedSkill = item.id;
+        save();
+        buildShop();
+        SFX.buy();
+        showToast(`✅ Unlocked ${itemName(item)}!`, "rgba(40,140,40,0.95)");
+      }
+    } else {
+      showToast(`💰 Need ${item.price - coins} more coins`, "rgba(180,40,40,0.95)");
+    }
+    return;
+  }
+  // Owned → just select
+  if (type === "skin") selectedSkin = item.id;
+  else selectedSkill = item.id;
+  save();
+  buildShop();
+}
+
+function resetShop() {
+  if (!confirm("Reset all shop progress and coins? This cannot be undone.")) return;
+  coins = 0;
+  owned = ["yellow", "none"];
+  selectedSkin = "yellow";
+  selectedSkill = "none";
+  save();
+  buildShop();
+  showToast("Shop reset");
+}
+
+// ===== Skins/skills =====
+const SKINS = {
+  yellow:  { body: "#ffeb3b", wing: "#ffc107", beak: "#ff7043" },
+  rainbow: { body: "rainbow", wing: "rainbow", beak: "#ff7043" },
+  penguin: { body: "#1a1a1a", wing: "#000",    beak: "#ff9800", belly: "#fafafa" },
+  bee:     { body: "#ffeb3b", wing: "#ffffff", beak: "#212121", stripes: "#212121", wingAlpha: 0.6 },
+  tiger:   { body: "#ff9800", wing: "#e65100", beak: "#ffb74d", stripes: "#1a1a1a", belly: "#fff3e0" },
+  phoenix: { body: "#e91e63", wing: "#ff5722", beak: "#ffeb3b", flameTrail: true, glow: "#ff5722" },
+  // Wish-only emoji-rendered skins (with glow colors)
+  realtiger: { emoji: "🐅", glow: "tiger"   },
+  realeagle: { emoji: "🦅", glow: "eagle"   },
+  unicorn:   { emoji: "🦄", glow: "rainbow" }
+};
+
+// ===== Stages, Levels & Boss =====
+const STAGES = [
+  {
+    id: 0, name: "🌲 Forest",
+    levelCount: 5,
+    bossEmoji: "👹", bossHP: 8,  bossSpeed: 2.4, bossShoot: 60,  bossAttack: "single",
+    bgTop: "#70c5ce", bgBottom: "#ded895", reward: 1
+  },
+  {
+    id: 1, name: "⛈️ Storm",
+    levelCount: 7,
+    bossEmoji: "🐉", bossHP: 12, bossSpeed: 3.0, bossShoot: 50,  bossAttack: "spread",
+    bgTop: "#5c6bc0", bgBottom: "#757575", reward: 2
+  },
+  {
+    id: 2, name: "🌌 Void",
+    levelCount: 10,
+    bossEmoji: "👾", bossHP: 16, bossSpeed: 3.5, bossShoot: 40,  bossAttack: "wave",
+    bgTop: "#1a0f2e", bgBottom: "#2d1b3d", reward: 5
+  }
+];
+const SCORE_PER_LEVEL = 5;
+let selectedStage = parseInt(localStorage.getItem("flappySelectedStage") || "0");
+let unlockedStages = JSON.parse(localStorage.getItem("flappyUnlocked") || "[0]");
+if (selectedStage >= STAGES.length || !unlockedStages.includes(selectedStage)) selectedStage = 0;
+
+function getStageLevels(stageId) {
+  const stage = STAGES[stageId];
+  const levels = [];
+  for (let i = 0; i < stage.levelCount; i++) {
+    let gap, speed;
+    if (i < 5) {
+      // Levels 1-5: standard ramp
+      gap   = 170 - i * 12 - stageId * 5;
+      speed = 2.0 + i * 0.3 + stageId * 0.4;
+    } else {
+      // Levels 6-10: gentler ramp so the late game stays beatable
+      const baseGap   = 170 - 4 * 12 - stageId * 5;
+      const baseSpeed = 2.0 + 4 * 0.3 + stageId * 0.4;
+      gap   = baseGap   - (i - 4) * 5;    // ~half shrink per level
+      speed = baseSpeed + (i - 4) * 0.12; // gentler speed bump
+    }
+    levels.push({
+      name: `Level ${i + 1}`,
+      gap: Math.max(100, gap),
+      pipeSpeed: Math.min(6.5, speed)
+    });
+  }
+  return levels;
+}
+let LEVELS = getStageLevels(selectedStage);
+let BOSS_TRIGGER_SCORE = LEVELS.length * SCORE_PER_LEVEL;
+let currentLevel = 0;
+let gameMode = localStorage.getItem("flappyMode") || "story"; // "story" or "infinite"
+
+let bossActive = false;
+const bossMaxHP = 8;
+let bossHP = bossMaxHP;
+let boss = { x: 0, y: 0, vy: 2.4 };
+let bossProjectiles = [];
+let bossShootTimer = 0;
+let won = false;
+let isPaused = false;
+// Player bullets
+let bullets = [];
+let shootCooldown = 0;
+
+// Bird
+let bird = { x: 80, y: 200, vy: 0, r: 14, rot: 0 };
+let GRAVITY = 0.45;
+let FLAP = -7.5;
+
+let pipes = [];
+const PIPE_W = 55;
+let GAP = 170;
+let PIPE_SPEED = 2.0;
+let pipeTimer = 0;
+
+let score = 0;
+let coinsThisRun = 0;
+let best = parseInt(localStorage.getItem("flappyBest") || "0");
+let started = false;
+let gameOver = false;
+let running = false;
+let shieldActive = false;
+let shieldFlash = 0;
+let extraLifeAvailable = false;
+let dashCharges = 0;
+let dashTimer = 0; // frames of active dash (zoom + invincibility)
+let postDashTimer = 0; // 0.5s grace invincibility after a dash ends
+const POST_DASH_INVINCIBILITY = 30; // ~0.5s at 60fps
+let invincibleTimer = 0; // frames of full invincibility (skill)
+let invincibleUsed = false;
+const SKILL_REFRESH_INTERVAL = 25 * 60; // 25 seconds at 60fps
+let skillRefreshTimer = SKILL_REFRESH_INTERVAL;
+const SUPERDASH_REFRESH_INTERVAL = 10 * 60; // 10 seconds for Super Dash
+let superDashRefreshTimer = SUPERDASH_REFRESH_INTERVAL;
+
+let clouds = [
+  { x: 50,  y: 60,  s: 0.6 },
+  { x: 200, y: 100, s: 0.8 },
+  { x: 320, y: 50,  s: 0.5 }
+];
+
+function flap() {
+  if (!running || gameOver) return;
+  if (!started) started = true;
+  bird.vy = FLAP;
+  SFX.flap();
+}
+
+// ===== Reusable skill triggers (used by keyboard AND mobile buttons) =====
+function triggerDash() {
+  if (!running || !started || gameOver) return;
+  if (selectedSkill !== "dash" && selectedSkill !== "superdash") return;
+  if (dashCharges <= 0) return;
+  if (dashTimer > 0) return;
+  dashCharges--;
+  // Super Dash lasts much longer (~2 seconds)
+  dashTimer = selectedSkill === "superdash" ? 120 : 24;
+  bird.vy = 0;
+  if (selectedSkill === "superdash") superDashRefreshTimer = SUPERDASH_REFRESH_INTERVAL;
+  SFX.dash();
+  updateHUD();
+}
+function triggerInvincible() {
+  if (!running || !started || gameOver) return;
+  if (selectedSkill !== "invincible" || invincibleUsed) return;
+  invincibleUsed = true;
+  invincibleTimer = 600;
+  SFX.invincible();
+  showToast("🦾 INVINCIBLE 10s!", "rgba(255,193,7,0.95)");
+  updateHUD();
+}
+
+// ===== Mobile controls visibility / wiring =====
+function updateMobileControls() {
+  const playing = running && started && !gameOver && !isPaused && !isShopOpen();
+  const shootBtn = document.getElementById("btnShoot");
+  const dashBtn  = document.getElementById("btnDash");
+  const invBtn   = document.getElementById("btnInvincible");
+  if (!shootBtn) return;
+  shootBtn.classList.toggle("show", playing && bossActive);
+  dashBtn.classList.toggle("show",  playing && (selectedSkill === "dash" || selectedSkill === "superdash") && dashCharges > 0 && dashTimer === 0);
+  invBtn.classList.toggle("show",   playing && selectedSkill === "invincible" && !invincibleUsed);
+  const dashCountEl = document.getElementById("dashCount");
+  if (dashCountEl) dashCountEl.textContent = dashCharges > 0 ? dashCharges : "";
+}
+
+// Wire up the mobile buttons (touch + click)
+document.addEventListener("DOMContentLoaded", () => {
+  const bind = (id, fn) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const handler = e => { e.preventDefault(); e.stopPropagation(); fn(); };
+    el.addEventListener("touchstart", handler, { passive: false });
+    el.addEventListener("click", handler);
+  };
+  bind("btnShoot", fireBullet);
+  bind("btnDash", triggerDash);
+  bind("btnInvincible", triggerInvincible);
+});
+
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") {
+    e.preventDefault();
+    // Don't trigger if any popup is open
+    if (isShopOpen()) return;
+    if (gameOver) { backToMenu(); return; }
+    if (!running) { startGame(); return; }
+    flap();
+  }
+  if (e.code === "KeyQ") {
+    if (e.repeat) return;
+    triggerDash();
+  }
+  if (e.code === "KeyF") {
+    if (e.repeat) return;
+    fireBullet();
+  }
+  if (e.code === "KeyI") {
+    if (e.repeat) return;
+    triggerInvincible();
+  }
+  // Shortcut: S → open shop
+  if (e.code === "KeyS") {
+    if (e.repeat) return;
+    if (isShopOpen()) return;
+    openShop();
+  }
+  // Shortcut: P → pause/resume
+  if (e.code === "KeyP") {
+    if (e.repeat) return;
+    if (!running || !started || gameOver) return;
+    if (isShopOpen()) return; // popups already pause
+    isPaused = !isPaused;
+    if (isPaused) {
+      SFX.click();
+      showToast("⏸ Paused — press P to resume", "rgba(0,0,0,0.85)");
+    } else {
+      SFX.click();
+      showToast("▶ Resumed", "rgba(40,180,40,0.95)");
+    }
+  }
+});
+function isShopOpen() {
+  return shop.style.display === "block" ||
+         document.getElementById("records").style.display === "block" ||
+         document.getElementById("wish").style.display === "block" ||
+         document.getElementById("intro").style.display === "block" ||
+         document.getElementById("settings").style.display === "block" ||
+         document.getElementById("nameRequired").style.display === "block";
+}
+canvas.addEventListener("mousedown", () => { if (!isShopOpen()) flap(); });
+canvas.addEventListener("touchstart", e => { e.preventDefault(); if (!isShopOpen()) flap(); });
+
+function spawnPipe() {
+  const minTop = 50;
+  const maxTop = GROUND_Y - GAP - 50;
+  const topH = Math.random() * (maxTop - minTop) + minTop;
+  pipes.push({ x: W, topH: topH, passed: false });
+}
+
+function applySkill() {
+  GRAVITY = 0.45;
+  FLAP = -7.5;
+  shieldActive = false;
+  extraLifeAvailable = false;
+  dashCharges = 0;
+  dashTimer = 0;
+  postDashTimer = 0;
+  invincibleTimer = 0;
+  invincibleUsed = false;
+
+  if (selectedSkill === "shield")    shieldActive = true;
+  if (selectedSkill === "extra")     extraLifeAvailable = true;
+  if (selectedSkill === "dash")      dashCharges = 3;
+  if (selectedSkill === "superdash") { dashCharges = 1; superDashRefreshTimer = SUPERDASH_REFRESH_INTERVAL; }
+}
+
+// Refresh the *uses* of the equipped skill without canceling active effects
+function refreshSkillUses() {
+  if (selectedSkill === "shield")    shieldActive = true;
+  if (selectedSkill === "extra")     extraLifeAvailable = true;
+  if (selectedSkill === "dash")      dashCharges = 3;
+  if (selectedSkill === "superdash") dashCharges = 1;
+  if (selectedSkill === "invincible") invincibleUsed = false;
+}
+
+function applyLevel() {
+  // Infinite mode: lock to easy starter difficulty, no progression
+  if (gameMode === "infinite") {
+    GAP = 170;
+    PIPE_SPEED = 2.0;
+    return;
+  }
+  if (currentLevel < LEVELS.length) {
+    GAP = LEVELS[currentLevel].gap;
+    PIPE_SPEED = LEVELS[currentLevel].pipeSpeed;
+  } else {
+    // Beyond final level (shouldn't happen in boss mode, defensive)
+    GAP = Math.max(85, 170 - currentLevel * 7);
+    PIPE_SPEED = Math.min(8, 2 + currentLevel * 0.35);
+  }
+}
+
+function applyStage() {
+  LEVELS = getStageLevels(selectedStage);
+  BOSS_TRIGGER_SCORE = LEVELS.length * SCORE_PER_LEVEL;
+  // Infinite mode always uses the original Forest background; boss mode uses per-stage colors
+  const bgStage = gameMode === "infinite" ? STAGES[0] : STAGES[selectedStage];
+  canvas.style.background = `linear-gradient(${bgStage.bgTop} 0%, ${bgStage.bgTop} 80%, ${bgStage.bgBottom} 80%, ${bgStage.bgBottom} 100%)`;
+}
+
+function selectStage(stageId) {
+  if (running) { showToast("Finish your run first!", "rgba(180,40,40,0.95)"); return; }
+  if (!unlockedStages.includes(stageId)) {
+    showToast("🔒 Stage locked — beat the previous boss first!", "rgba(180,40,40,0.95)");
+    return;
+  }
+  selectedStage = stageId;
+  localStorage.setItem("flappySelectedStage", stageId);
+  applyStage();
+  buildStageSelector();
+  SFX.click();
+  showToast(`${t("stage")}: ${stageName(stageId)}`, "rgba(40,120,200,0.95)");
+}
+
+function buildStageSelector() {
+  const wrap = document.getElementById("stageRow");
+  const label = document.querySelector(".stageLabel");
+  const wrapper = document.querySelector(".stageRowWrap");
+  if (!wrap) return;
+
+  // Infinite mode: hide stages completely
+  if (gameMode === "infinite") {
+    if (wrapper) wrapper.style.display = "none";
+    return;
+  }
+
+  if (wrapper) wrapper.style.display = "block";
+  if (label) label.textContent = `${t("stage")} (${t("scoreToBoss")}):`;
+  wrap.innerHTML = STAGES.map(s => {
+    const unlocked = unlockedStages.includes(s.id);
+    const sel = selectedStage === s.id;
+    const cls = "stageBtn" + (sel ? " selected" : "") + (unlocked ? "" : " locked");
+    const bossScore = s.levelCount * SCORE_PER_LEVEL;
+    const display = unlocked ? `${stageName(s.id)} (${bossScore} pts)` : `${stageName(s.id)} 🔒 (${bossScore} pts)`;
+    return `<button class="${cls}" onclick="selectStage(${s.id})">${display}</button>`;
+  }).join("");
+}
+
+function toggleMode() {
+  if (running) {
+    showToast("Finish your run first!", "rgba(180,40,40,0.95)");
+    return;
+  }
+  gameMode = gameMode === "story" ? "infinite" : "story";
+  localStorage.setItem("flappyMode", gameMode);
+  updateModeButton();
+  applyStage(); // refresh background for the mode
+  buildStageSelector();
+  SFX.click();
+  showToast(`Mode: ${gameMode === "story" ? "👹 Boss" : "♾️ Infinite"}`, "rgba(40,120,200,0.95)");
+}
+
+function updateModeButton() {
+  const btn = document.getElementById("modeBtn");
+  if (!btn) return;
+  if (gameMode === "infinite") {
+    btn.textContent = "♾️ " + t("infiniteLabel");
+    btn.classList.add("infinite");
+  } else {
+    btn.textContent = "👹 " + t("bossLabel");
+    btn.classList.remove("infinite");
+  }
+}
+
+function checkLevelProgress() {
+  if (bossActive) return;
+  // Infinite mode: no level progression at all
+  if (gameMode === "infinite") return;
+  // Boss mode: trigger boss when threshold hit
+  if (score >= BOSS_TRIGGER_SCORE) { startBoss(); return; }
+  const newLevel = Math.min(Math.floor(score / SCORE_PER_LEVEL), LEVELS.length - 1);
+  if (newLevel !== currentLevel) {
+    currentLevel = newLevel;
+    applyLevel();
+    SFX.level();
+    showToast(`✨ ${LEVELS[currentLevel].name}!`, "rgba(40,120,200,0.95)");
+  }
+}
+
+function startBoss() {
+  const stage = STAGES[selectedStage];
+  bossActive = true;
+  bossHP = stage.bossHP;
+  boss = { x: W - 70, y: H / 2, vy: stage.bossSpeed };
+  bossProjectiles = [];
+  bullets = [];
+  shootCooldown = 0;
+  bossShootTimer = 0;
+  pipes = []; // clear all pipes for clean arena
+  // Refresh once-per-run skills so the boss fight is fair
+  refreshSkillUses();
+  skillRefreshTimer = SKILL_REFRESH_INTERVAL;
+  updateHUD();
+  SFX.bossIn();
+  showToast(`${stage.bossEmoji} BOSS! Skills refreshed — F to shoot 🔫`, "rgba(180,30,30,0.95)");
+}
+
+function bossShoot() {
+  const stage = STAGES[selectedStage];
+  if (stage.bossAttack === "single") {
+    bossProjectiles.push({ x: boss.x - 28, y: boss.y, vx: -5, vy: 0 });
+  } else if (stage.bossAttack === "spread") {
+    [-0.25, 0, 0.25].forEach(a => {
+      const speed = 5;
+      bossProjectiles.push({
+        x: boss.x - 28, y: boss.y,
+        vx: -speed * Math.cos(a),
+        vy: speed * Math.sin(a)
+      });
+    });
+  } else if (stage.bossAttack === "wave") {
+    for (let i = -2; i <= 2; i++) {
+      bossProjectiles.push({ x: boss.x - 28, y: boss.y + i * 35, vx: -5.5, vy: 0 });
+    }
+    // Teleport occasionally
+    if (Math.random() < 0.5) {
+      boss.y = 80 + Math.random() * (GROUND_Y - 160);
+    }
+  }
+}
+
+function updateBoss() {
+  const stage = STAGES[selectedStage];
+  // Vertical pacing
+  boss.y += boss.vy;
+  if (boss.y < 70 || boss.y > GROUND_Y - 70) boss.vy *= -1;
+
+  // Shoot pattern based on stage
+  bossShootTimer++;
+  if (bossShootTimer > stage.bossShoot) {
+    bossShoot();
+    bossShootTimer = 0;
+  }
+
+  // Move + cull boss projectiles
+  bossProjectiles.forEach(p => { p.x += p.vx; if (p.vy) p.y += p.vy; });
+  bossProjectiles = bossProjectiles.filter(p => p.x > -30 && p.y > -30 && p.y < H + 30);
+
+  // Boss projectile hits bird (skip during dash or invincible skill)
+  if (dashTimer === 0 && postDashTimer === 0 && invincibleTimer === 0) {
+    for (const p of bossProjectiles) {
+      const dx = p.x - bird.x;
+      const dy = p.y - bird.y;
+      if (dx * dx + dy * dy < 22 * 22) { endGame(); return; }
+    }
+  }
+
+  // Player bullets
+  if (shootCooldown > 0) shootCooldown--;
+  bullets.forEach(b => b.x += b.vx);
+  bullets = bullets.filter(b => b.x < W + 30);
+
+  // Bullet hits boss
+  bullets = bullets.filter(b => {
+    const dx = b.x - boss.x;
+    const dy = b.y - boss.y;
+    if (dx * dx + dy * dy < 30 * 30) {
+      bossHP--;
+      SFX.bossHit();
+      if (bossHP <= 0) onWin();
+      else showToast(`👹 ${bossHP} HP left`, "rgba(180,30,30,0.95)");
+      return false;
+    }
+    return true;
+  });
+}
+
+function fireBullet() {
+  if (!bossActive || !running || gameOver) return;
+  if (shootCooldown > 0) return;
+  bullets.push({ x: bird.x + bird.r + 4, y: bird.y, vx: 9 });
+  shootCooldown = 18; // ~0.3s between shots
+  SFX.shoot();
+}
+
+function onWin() {
+  const stage = STAGES[selectedStage];
+  const reward = stage.reward;
+  bossActive = false;
+  won = true;
+  gameOver = true;
+  SFX.win();
+  coins += coinsThisRun;
+  diamonds += reward;
+  // Unlock next stage if applicable
+  let unlockedNext = false;
+  const nextStage = selectedStage + 1;
+  if (nextStage < STAGES.length && !unlockedStages.includes(nextStage)) {
+    unlockedStages.push(nextStage);
+    localStorage.setItem("flappyUnlocked", JSON.stringify(unlockedStages));
+    unlockedNext = true;
+  }
+  if (score > best) {
+    best = score;
+    localStorage.setItem("flappyBest", best);
+  }
+  recordRun(score, true);
+  save();
+  overTitle.textContent = unlockedNext
+    ? `🎉 ${stageName(nextStage)} UNLOCKED!`
+    : "🏆 BOSS DEFEATED!";
+  finalScoreEl.textContent = score;
+  coinsEarnedEl.textContent = coinsThisRun;
+  document.getElementById("diamondLine").textContent = `💎 +${reward} Diamond${reward > 1 ? "s" : ""}!`;
+  document.getElementById("diamondLine").style.display = "block";
+  bestScoreEl.textContent = best;
+  overlay.style.display = "block";
+}
+
+function updateHUD() {
+  let parts = [];
+  if (bossActive) parts.push(`<span class="badge">🔫 F to shoot</span>`);
+  if (gameMode === "infinite" && running && started && selectedSkill !== "none") {
+    const secs = Math.max(0, Math.ceil(skillRefreshTimer / 60));
+    parts.push(`<span class="badge" style="background:rgba(40,140,40,0.85)">♻️ Refresh ${secs}s</span>`);
+  }
+  if (selectedSkill === "shield") parts.push(`<span class="badge">🛡️ ${shieldActive ? "Ready" : "Used"}</span>`);
+  if (selectedSkill === "extra")  parts.push(`<span class="badge">❤️ ${extraLifeAvailable ? "Ready" : "Used"}</span>`);
+  if (selectedSkill === "dash")   parts.push(`<span class="badge">💨 Dash ${dashCharges}/3 (Q)</span>`);
+  if (selectedSkill === "superdash") {
+    const secs = Math.ceil(superDashRefreshTimer / 60);
+    const refreshTag = dashCharges < 1 ? ` <span style="opacity:.8">ready in ${secs}s</span>` : "";
+    parts.push(`<span class="badge" style="background:linear-gradient(90deg,#00bcd4,#7b1fa2);color:white">🚀 Super Dash ${dashCharges}/1 (Q)${refreshTag}</span>`);
+  }
+  if (selectedSkill === "invincible") {
+    if (invincibleTimer > 0) {
+      const remaining = invincibleTimer === Infinity ? "∞" : Math.ceil(invincibleTimer / 60) + "s";
+      parts.push(`<span class="badge" style="background:#ffc107;color:#222">🦾 INVINCIBLE ${remaining}</span>`);
+    } else if (invincibleUsed) {
+      parts.push(`<span class="badge">🦾 Used</span>`);
+    } else {
+      parts.push(`<span class="badge">🦾 Press I</span>`);
+    }
+  }
+  hud.innerHTML = parts.join("");
+  // Live coin counter in the corner
+  coinCountEl.textContent = coins + coinsThisRun;
+}
+
+function startGame() {
+  menu.style.display = "none";
+  overlay.style.display = "none";
+  bird = { x: 80, y: 200, vy: 0, r: 14, rot: 0 };
+  pipes = [];
+  pipeTimer = 0;
+  score = 0;
+  coinsThisRun = 0;
+  started = false;
+  gameOver = false;
+  running = true;
+  won = false;
+  isPaused = false;
+  bossActive = false;
+  bossProjectiles = [];
+  currentLevel = 0;
+  applyLevel();
+  applySkill();
+  skillRefreshTimer = SKILL_REFRESH_INTERVAL;
+  updateHUD();
+}
+
+function backToMenu() {
+  overlay.style.display = "none";
+  running = false;
+  gameOver = false;
+  won = false;
+  bossActive = false;
+  hud.innerHTML = "";
+  buildShop();
+  buildStageSelector();
+  menu.style.display = "block";
+}
+
+function endGame() {
+  // Dash, post-dash grace, or Invincible skill makes you immune
+  if (dashTimer > 0 || postDashTimer > 0) return;
+  if (invincibleTimer > 0) return;
+
+  if (shieldActive) {
+    shieldActive = false;
+    shieldFlash = 30;
+    bird.vy = FLAP;
+    SFX.shield();
+    updateHUD();
+    return;
+  }
+  // Extra Life: respawn at center, clear nearby pipes
+  if (extraLifeAvailable) {
+    extraLifeAvailable = false;
+    bird.y = 200;
+    bird.vy = 0;
+    pipes = pipes.filter(p => p.x > bird.x + 120);
+    shieldFlash = 30;
+    SFX.extra();
+    updateHUD();
+    return;
+  }
+  gameOver = true;
+  SFX.hit();
+
+  // Bank the coins
+  coins += coinsThisRun;
+  if (score > best) {
+    best = score;
+    localStorage.setItem("flappyBest", best);
+    overTitle.textContent = "🏆 New Best!";
+  } else {
+    overTitle.textContent = "Game Over";
+  }
+  recordRun(score, false);
+  save();
+
+  finalScoreEl.textContent = score;
+  coinsEarnedEl.textContent = coinsThisRun;
+  document.getElementById("diamondLine").style.display = "none";
+  bestScoreEl.textContent = best;
+  overlay.style.display = "block";
+}
+
+function drawBird() {
+  ctx.save();
+  ctx.translate(bird.x, bird.y);
+  bird.rot = Math.max(-0.5, Math.min(1.2, bird.vy * 0.08));
+  ctx.rotate(bird.rot);
+
+  const skin = SKINS[selectedSkin];
+
+  if (shieldActive) {
+    ctx.beginPath();
+    ctx.arc(0, 0, bird.r + 6, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(0, 200, 255, 0.9)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+  // Dash motion blur trail + countdown ring
+  if (dashTimer > 0) {
+    const isSuper = selectedSkill === "superdash";
+    const maxFrames = isSuper ? 120 : 24;
+    const trailCount = isSuper ? 10 : 4;
+    const trailGap = isSuper ? 11 : 9;
+
+    // Motion-blur ghosts (rainbow for super dash)
+    for (let i = 1; i <= trailCount; i++) {
+      ctx.beginPath();
+      ctx.arc(-i * trailGap, 0, bird.r * (1 - i * (isSuper ? 0.08 : 0.18)), 0, Math.PI * 2);
+      if (isSuper) {
+        const hue = (Date.now() / 12 + i * 30) % 360;
+        ctx.fillStyle = `hsla(${hue}, 95%, 65%, ${0.7 - i * 0.06})`;
+      } else {
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.45 - i * 0.09})`;
+      }
+      ctx.fill();
+    }
+
+    // Countdown ring
+    const progress = dashTimer / maxFrames;
+    ctx.beginPath();
+    ctx.arc(0, 0, bird.r + 8, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+    if (isSuper) {
+      ctx.strokeStyle = `hsl(${(Date.now() / 8) % 360}, 95%, 65%)`;
+      ctx.lineWidth = 5;
+    } else {
+      ctx.strokeStyle = "rgba(0, 200, 255, 0.95)";
+      ctx.lineWidth = 3;
+    }
+    ctx.stroke();
+
+    // Super-dash extras: pulsing rainbow aura + sparkle particles
+    if (isSuper) {
+      const auraR = bird.r + 16 + Math.sin(Date.now() / 70) * 4;
+      ctx.beginPath();
+      ctx.arc(0, 0, auraR, 0, Math.PI * 2);
+      ctx.strokeStyle = `hsla(${(Date.now() / 8 + 180) % 360}, 95%, 70%, 0.85)`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      // Sparkles emitting backward
+      for (let i = 0; i < 5; i++) {
+        const t = (Date.now() / 100 + i * 1.7) % 6;
+        const sx = -t * 18;
+        const sy = Math.sin(Date.now() / 90 + i) * bird.r * 1.4;
+        const sz = 3 - t * 0.4;
+        if (sz > 0.5) {
+          ctx.fillStyle = `hsla(${(Date.now() / 10 + i * 60) % 360}, 95%, 75%, ${1 - t / 6})`;
+          ctx.beginPath();
+          ctx.arc(sx, sy, sz, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+  if (shieldFlash > 0) {
+    ctx.beginPath();
+    ctx.arc(0, 0, bird.r + 10 + shieldFlash, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${shieldFlash / 30})`;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    shieldFlash--;
+  }
+
+  // Post-dash grace: fading cyan ring (0.5s safety window)
+  if (postDashTimer > 0 && dashTimer === 0) {
+    ctx.beginPath();
+    ctx.arc(0, 0, bird.r + 6, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(0, 200, 255, ${postDashTimer / POST_DASH_INVINCIBILITY * 0.9})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  // Invincibility: gold pulsing aura
+  if (invincibleTimer > 0) {
+    const r = bird.r + 8 + Math.sin(Date.now() / 80) * 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255, 215, 0, 0.95)";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
+
+  // Emoji-style skin (wish-only): glow + sparkles + emoji
+  if (skin.emoji) {
+    // Pick glow color
+    let glowBase;
+    if (skin.glow === "tiger")        glowBase = "rgba(255, 112, 67, $A)";
+    else if (skin.glow === "eagle")   glowBase = "rgba(255, 213, 79, $A)";
+    else if (skin.glow === "rainbow") glowBase = `hsla(${(Date.now() / 8) % 360}, 90%, 65%, $A)`;
+    else                              glowBase = "rgba(255, 215, 0, $A)";
+
+    // Pulsing radial glow
+    const pulse = 4 + Math.sin(Date.now() / 200) * 3;
+    const grad = ctx.createRadialGradient(0, 0, bird.r * 0.4, 0, 0, bird.r + 18 + pulse);
+    grad.addColorStop(0, glowBase.replace("$A", "0.6"));
+    grad.addColorStop(0.6, glowBase.replace("$A", "0.25"));
+    grad.addColorStop(1, glowBase.replace("$A", "0"));
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, bird.r + 22 + pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rotating sparkles (4-pointed mini stars)
+    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+    for (let i = 0; i < 5; i++) {
+      const t = Date.now() / 500 + i * 1.25;
+      const angle = t % (Math.PI * 2);
+      const dist = bird.r + 14 + Math.sin(t * 1.6) * 3;
+      const sx = Math.cos(angle) * dist;
+      const sy = Math.sin(angle) * dist;
+      const sz = 2 + Math.abs(Math.sin(t * 2.3)) * 1.2;
+      ctx.fillRect(sx - 0.5, sy - sz, 1, sz * 2);
+      ctx.fillRect(sx - sz, sy - 0.5, sz * 2, 1);
+    }
+
+    // Render emoji facing right (mirror + cancel velocity tilt)
+    ctx.rotate(-bird.rot);
+    ctx.scale(-1, 1);
+    ctx.font = "32px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(skin.emoji, 0, 0);
+    ctx.textBaseline = "alphabetic";
+    ctx.restore();
+    return;
+  }
+
+  let bodyColor = skin.body;
+  if (bodyColor === "rainbow") bodyColor = `hsl(${(Date.now() / 8) % 360}, 90%, 60%)`;
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.arc(0, 0, bird.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#333";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  let wingColor = skin.wing;
+  if (wingColor === "rainbow") wingColor = `hsl(${(Date.now() / 8 + 120) % 360}, 90%, 50%)`;
+  ctx.fillStyle = wingColor;
+  ctx.beginPath();
+  ctx.ellipse(-3, 3, 8, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.arc(6, -4, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "black";
+  ctx.beginPath();
+  ctx.arc(7, -4, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = skin.beak;
+  ctx.beginPath();
+  ctx.moveTo(12, -1);
+  ctx.lineTo(20, 0);
+  ctx.lineTo(12, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawPipes() {
+  pipes.forEach(p => {
+    ctx.fillStyle = "#4caf50";
+    ctx.fillRect(p.x, 0, PIPE_W, p.topH);
+    ctx.fillStyle = "#388e3c";
+    ctx.fillRect(p.x - 3, p.topH - 20, PIPE_W + 6, 20);
+
+    const bottomY = p.topH + GAP;
+    ctx.fillStyle = "#4caf50";
+    ctx.fillRect(p.x, bottomY, PIPE_W, GROUND_Y - bottomY);
+    ctx.fillStyle = "#388e3c";
+    ctx.fillRect(p.x - 3, bottomY, PIPE_W + 6, 20);
+  });
+}
+
+function drawClouds() {
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  clouds.forEach(c => {
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 18 * c.s, 0, Math.PI * 2);
+    ctx.arc(c.x + 18 * c.s, c.y + 4, 14 * c.s, 0, Math.PI * 2);
+    ctx.arc(c.x - 16 * c.s, c.y + 4, 14 * c.s, 0, Math.PI * 2);
+    ctx.fill();
+    if (started && !gameOver && !isShopOpen()) c.x -= 0.3 * c.s;
+    if (c.x < -40) c.x = W + 40;
+  });
+}
+
+function drawGround() {
+  ctx.fillStyle = "#ded895";
+  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  ctx.fillStyle = "#8b6f3a";
+  for (let i = 0; i < W; i += 20) {
+    ctx.fillRect(i, GROUND_Y, 10, 6);
+  }
+}
+
+function drawScore() {
+  if (!running) return;
+  ctx.fillStyle = "white";
+  ctx.strokeStyle = "black";
+  ctx.textAlign = "center";
+
+  if (!bossActive) {
+    // Level name (only in boss mode — infinite mode has no levels)
+    if (gameMode !== "infinite") {
+      ctx.lineWidth = 3;
+      ctx.font = "bold 14px Arial";
+      const lvName = currentLevel < LEVELS.length ? LEVELS[currentLevel].name : `Level ${currentLevel + 1}`;
+      ctx.strokeText(lvName, W / 2, 26);
+      ctx.fillText(lvName, W / 2, 26);
+    }
+
+    // Score
+    ctx.lineWidth = 4;
+    ctx.font = "bold 36px Arial";
+    ctx.strokeText(score, W / 2, 70);
+    ctx.fillText(score, W / 2, 70);
+  }
+
+  if (!started && !gameOver) {
+    ctx.lineWidth = 3;
+    ctx.font = "bold 18px Arial";
+    ctx.strokeText(t("tapToStart"), W / 2, H / 2);
+    ctx.fillText(t("tapToStart"), W / 2, H / 2);
+  }
+}
+
+function drawBoss() {
+  if (!bossActive) return;
+  const stage = STAGES[selectedStage];
+  ctx.font = "60px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(stage.bossEmoji, boss.x, boss.y);
+
+  // Boss fireballs
+  ctx.font = "26px Arial";
+  bossProjectiles.forEach(p => ctx.fillText("🔥", p.x, p.y));
+
+  // Player bullets (yellow stars)
+  ctx.fillStyle = "#ffeb3b";
+  ctx.strokeStyle = "#f57f17";
+  ctx.lineWidth = 2;
+  bullets.forEach(b => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  });
+  ctx.textBaseline = "alphabetic";
+}
+
+function drawBossHP() {
+  if (!bossActive) return;
+  const stage = STAGES[selectedStage];
+  const maxHP = stage.bossHP;
+  const barW = 260, barH = 20;
+  const x = (W - barW) / 2, y = 14;
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(x - 3, y - 3, barW + 6, barH + 6);
+  ctx.fillStyle = "#444";
+  ctx.fillRect(x, y, barW, barH);
+  ctx.fillStyle = "#e91e63";
+  ctx.fillRect(x, y, barW * (bossHP / maxHP), barH);
+  ctx.fillStyle = "white";
+  ctx.font = "bold 13px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`${stage.bossEmoji} BOSS  ${bossHP}/${maxHP}`, W / 2, y + barH / 2);
+  ctx.textBaseline = "alphabetic";
+}
+
+function update() {
+  if (!running || !started || gameOver) return;
+  if (isShopOpen() || isPaused) return; // freeze the game while popup open or paused
+
+  // Periodic skill refresh every 25 seconds (infinite mode only)
+  if (gameMode === "infinite" && selectedSkill !== "none") {
+    skillRefreshTimer--;
+    if (skillRefreshTimer % 60 === 0) updateHUD(); // refresh seconds counter
+    if (skillRefreshTimer <= 0) {
+      refreshSkillUses();
+      skillRefreshTimer = SKILL_REFRESH_INTERVAL;
+      SFX.shield();
+      showToast("♻️ Skills refreshed!", "rgba(40,180,40,0.95)");
+      updateHUD();
+    }
+  }
+
+  // Super Dash: auto-refresh charge every 10 seconds (any mode)
+  if (selectedSkill === "superdash" && dashCharges < 1 && dashTimer === 0) {
+    superDashRefreshTimer--;
+    if (superDashRefreshTimer % 60 === 0) updateHUD();
+    if (superDashRefreshTimer <= 0) {
+      dashCharges = 1;
+      superDashRefreshTimer = SUPERDASH_REFRESH_INTERVAL;
+      SFX.dash();
+      showToast("🚀 Super Dash recharged!", "rgba(0,188,212,0.95)");
+      updateHUD();
+    }
+  }
+
+  if (dashTimer > 0) {
+    dashTimer--;
+    if (dashTimer === 0) postDashTimer = POST_DASH_INVINCIBILITY;
+  } else if (postDashTimer > 0) {
+    postDashTimer--;
+  }
+  if (invincibleTimer > 0 && invincibleTimer !== Infinity) {
+    invincibleTimer--;
+    if (invincibleTimer === 0) updateHUD();
+    else if (invincibleTimer % 60 === 0) updateHUD(); // refresh seconds badge
+  }
+
+  // While dashing: freeze gravity (straight horizontal dash)
+  if (dashTimer > 0) bird.vy = 0; else bird.vy += GRAVITY;
+  bird.y += bird.vy;
+
+  // Ground / ceiling always applies
+  if (bird.y + bird.r >= GROUND_Y || bird.y - bird.r <= 0) {
+    bird.y = Math.min(bird.y, GROUND_Y - bird.r);
+    endGame();
+    return;
+  }
+
+  // === BOSS FIGHT MODE ===
+  if (bossActive) { updateBoss(); return; }
+
+  // === LEVEL MODE ===
+  // Pipes scroll 4× faster while dashing → feels like zooming forward
+  const pipeMult = dashTimer > 0 ? 4 : 1;
+  // Spawn timer ticks at the same multiplier so new pipes keep coming
+  pipeTimer += pipeMult;
+  if (pipeTimer > 90) { spawnPipe(); pipeTimer = 0; }
+  pipes.forEach(p => {
+    p.x -= PIPE_SPEED * pipeMult;
+    if (!p.passed && p.x + PIPE_W < bird.x) {
+      p.passed = true;
+      score++;
+      coinsThisRun++;
+      SFX.score();
+      checkLevelProgress();
+      updateHUD();
+    }
+  });
+  pipes = pipes.filter(p => p.x + PIPE_W > 0);
+
+  // Pipe collision (skipped during dash or invincible)
+  if (dashTimer === 0 && postDashTimer === 0 && invincibleTimer === 0) {
+    pipes.forEach(p => {
+      const inX = bird.x + bird.r > p.x && bird.x - bird.r < p.x + PIPE_W;
+      const hitsTop = bird.y - bird.r < p.topH;
+      const hitsBottom = bird.y + bird.r > p.topH + GAP;
+      if (inX && (hitsTop || hitsBottom)) endGame();
+    });
+  }
+}
+
+function drawPaused() {
+  if (!running || !started || gameOver) return;
+  if (!isShopOpen() && !isPaused) return;
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "white";
+  ctx.strokeStyle = "black";
+  ctx.lineWidth = 4;
+  ctx.font = "bold 36px Arial";
+  ctx.textAlign = "center";
+  ctx.strokeText("⏸ Paused", W / 2, H / 2);
+  ctx.fillText("⏸ Paused", W / 2, H / 2);
+  if (isPaused) {
+    ctx.font = "bold 16px Arial";
+    ctx.lineWidth = 3;
+    ctx.strokeText("Press P to resume", W / 2, H / 2 + 30);
+    ctx.fillText("Press P to resume", W / 2, H / 2 + 30);
+  }
+}
+
+function loop() {
+  ctx.clearRect(0, 0, W, H);
+  drawClouds();
+  drawPipes();
+  drawGround();
+  drawBoss();
+  drawBird();
+  drawScore();
+  drawBossHP();
+  drawPaused();
+  update();
+  updateMobileControls();
+  requestAnimationFrame(loop);
+}
+
+applyLanguage();
+updateModeButton();
+applyStage();
+buildStageSelector();
+buildShop();
+updateWishButtonPulse();
+// Name comes first; the intro modal opens automatically after they pick one.
+// If they already have a name set, just show the intro (if first wish unused).
+if (localStorage.getItem("flappyNameSet")) {
+  showFirstTimeIntro();
+} else {
+  requireName();
+}
+syncScoreToFirebase(); // push my existing best scores on load
+loop();
+</script>
+
+</body>
+</html>
