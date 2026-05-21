@@ -287,6 +287,7 @@
       <button class="btn" onclick="loginChoose('login')"    id="btnLoginMode">🔑 Login</button>
       <button class="btn secondary" onclick="loginChoose('register')" id="btnRegisterMode" style="margin-top:8px;display:none">📝 Register New</button>
       <button class="btn secondary" onclick="loginChoose('guest')"    id="btnGuestMode" style="margin-top:8px">👤 Play as Guest</button>
+      <button class="btn secondary" onclick="cancelLogout()" id="btnCancelLogout" style="margin-top:8px;display:none;background:rgba(206,147,216,0.2);border:1px solid #ce93d8">↩ Cancel — back to my account</button>
     </div>
 
     <!-- Stage 2 — login OR register form -->
@@ -302,6 +303,7 @@
       <div id="loginError" style="color:#ef5350;font-size:12px;text-align:center;min-height:18px"></div>
       <button class="btn" onclick="loginSubmit()" id="btnLoginSubmit">Continue</button>
       <button class="btn secondary" onclick="loginBack()" style="margin-top:6px" id="btnLoginBack">← Back</button>
+      <button class="btn secondary" onclick="cancelLogout()" id="btnCancelLogout2" style="margin-top:6px;display:none;background:rgba(206,147,216,0.2);border:1px solid #ce93d8">↩ Cancel — back to my account</button>
     </div>
   </div>
 </div>
@@ -379,7 +381,9 @@ const I18N = {
     btnLoginSubmit:    "Continue",
     btnLoginSubmitR:   "📝 Register & Play",
     btnLoginSubmitL:   "🔑 Login",
-    btnLoginBack:      "← Back"
+    btnLoginBack:      "← Back",
+    btnCancelLogout:   "↩ Cancel — back to my account",
+    autoCreated:       "📝 New account created — welcome!"
   },
   zh: {
     welcome:       "歡迎回來,{name}!",
@@ -403,7 +407,9 @@ const I18N = {
     btnLoginSubmit:    "繼續",
     btnLoginSubmitR:   "📝 註冊並開始",
     btnLoginSubmitL:   "🔑 登入",
-    btnLoginBack:      "← 返回"
+    btnLoginBack:      "← 返回",
+    btnCancelLogout:   "↩ 取消 — 回到原帳號",
+    autoCreated:       "📝 已建立新帳號 — 歡迎!"
   }
 };
 
@@ -436,6 +442,8 @@ function applyLang() {
   setText("lblLoginName",      t("lblLoginName"));
   setText("lblLoginPwd",       t("lblLoginPwd"));
   setText("btnLoginBack",      t("btnLoginBack"));
+  setText("btnCancelLogout",   t("btnCancelLogout"));
+  setText("btnCancelLogout2",  t("btnCancelLogout"));
   /* Submit button text changes based on current mode (login vs register) */
   const submitBtn = document.getElementById("btnLoginSubmit");
   if (submitBtn) {
@@ -566,14 +574,21 @@ try {
    Guests don't sync (no account). Sync triggers: hub load, every 30s, page unload. */
 const SYNC_PREFIXES = ["flappyCoins", "flappyDiamonds", "knife.", "brick.", "snake.", "parkour."];
 function shouldSync(k) { return SYNC_PREFIXES.some(p => k === p || k.startsWith(p)); }
+/* Firebase rejects keys containing ".", "#", "$", "/", "[", or "]".
+   Many of our localStorage keys use dots (e.g. "knife.coins"), so we encode them. */
+function encodeFirebaseKey(k) { return k.replace(/\./g, "_DOT_"); }
+function decodeFirebaseKey(k) { return k.replace(/_DOT_/g, "."); }
 function collectProgress() {
   const data = {};
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (shouldSync(k)) data[k] = localStorage.getItem(k);
+    if (shouldSync(k)) data[encodeFirebaseKey(k)] = localStorage.getItem(k);
   }
   return data;
 }
+/* Race-condition guard: don't let auto-upload write LOCAL data to cloud until at least one
+   download/merge has completed THIS session. Prevents new devices from wiping good cloud data. */
+let _syncReady = false;
 async function uploadProgress() {
   if (!progressRef) return;
   const accountKey = localStorage.getItem("flappyAccountKey");
@@ -586,6 +601,11 @@ async function uploadProgress() {
     showSyncStatus("☁ Saved");
   } catch (e) { console.warn("Upload failed", e); }
 }
+/* Periodic/auto uploads are gated by _syncReady — manual ☁ Save and post-register uploads bypass it. */
+async function autoUploadProgress() {
+  if (!_syncReady) return;
+  return uploadProgress();
+}
 async function downloadProgress() {
   if (!progressRef) return false;
   const accountKey = localStorage.getItem("flappyAccountKey");
@@ -595,7 +615,8 @@ async function downloadProgress() {
     if (!snap.exists()) return false;
     const node = snap.val();
     const data = node.data || node;
-    Object.keys(data).forEach(k => localStorage.setItem(k, data[k]));
+    /* Decode Firebase keys (e.g. "knife_DOT_coins") back to real localStorage keys */
+    Object.keys(data).forEach(k => localStorage.setItem(decodeFirebaseKey(k), data[k]));
     refreshWallet();
     renderWelcome();
     showSyncStatus("☁ Restored from cloud");
@@ -612,8 +633,11 @@ async function syncMergeProgress() {
   if (!accountKey || localStorage.getItem("flappyAccountType") !== "registered") return false;
   try {
     const snap = await progressRef.child(accountKey).once("value");
-    const cloud = snap.exists() ? (snap.val().data || snap.val()) : {};
-    /* Collect every sync-eligible key from both sides */
+    const cloudRaw = snap.exists() ? (snap.val().data || snap.val()) : {};
+    /* Decode firebase-safe keys back to real localStorage keys before merging */
+    const cloud = {};
+    Object.keys(cloudRaw).forEach(k => { cloud[decodeFirebaseKey(k)] = cloudRaw[k]; });
+    /* Collect every sync-eligible key from both sides (using REAL keys) */
     const allKeys = new Set(Object.keys(cloud));
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
@@ -654,15 +678,18 @@ async function syncMergeProgress() {
       /* 4) Plain strings — prefer non-empty local, else cloud */
       merged[k] = (localVal != null && localVal !== "") ? localVal : (cloudVal || "");
     });
-    /* Write merged result to local AND back to cloud */
+    /* Write merged result to local (real keys) AND back to cloud (encoded keys) */
     Object.keys(merged).forEach(k => localStorage.setItem(k, merged[k]));
+    const encodedMerged = {};
+    Object.keys(merged).forEach(k => { encodedMerged[encodeFirebaseKey(k)] = merged[k]; });
     await progressRef.child(accountKey).set({
-      data: merged,
+      data: encodedMerged,
       savedAt: firebase.database.ServerValue.TIMESTAMP
     });
     refreshWallet();
     renderWelcome();
     showSyncStatus("☁ Synced");
+    _syncReady = true;  /* now safe for auto-uploads to write */
     return true;
   } catch (e) { console.warn("Merge sync failed", e); return false; }
 }
@@ -679,12 +706,13 @@ function showSyncStatus(msg) {
   clearTimeout(el._timer);
   el._timer = setTimeout(() => { el.style.opacity = "0"; }, 1800);
 }
-/* Periodic upload while hub is open + final upload on tab close */
-setInterval(uploadProgress, 30000);
+/* Periodic upload while hub is open + final upload on tab close —
+   both gated by _syncReady so we don't overwrite cloud before the initial merge. */
+setInterval(autoUploadProgress, 30000);
 window.addEventListener("beforeunload", () => {
+  if (!_syncReady) return;  /* haven't merged yet — don't risk wiping good cloud data */
   if (progressRef && localStorage.getItem("flappyAccountKey")) {
     const accountKey = localStorage.getItem("flappyAccountKey");
-    /* Use synchronous-ish keepalive fetch via Firebase REST so the save happens before tab closes */
     try {
       const url = `${firebaseConfig.databaseURL}/hubProgress/${accountKey}.json`;
       navigator.sendBeacon(url, JSON.stringify({ data: collectProgress(), savedAt: Date.now() }));
@@ -718,12 +746,42 @@ function showStage1() {
   const everReg     = localStorage.getItem("everRegistered") === "1";
   const regBtn      = document.getElementById("btnRegisterMode");
   if (regBtn) regBtn.style.display = (isRegistered || everReg) ? "none" : "";
+  /* Cancel button appears only when there's a "prev account" snapshot (i.e. just logged out) */
+  const cancelBtn = document.getElementById("btnCancelLogout");
+  if (cancelBtn) cancelBtn.style.display = sessionStorage.getItem("prevAccount") ? "" : "none";
 }
 function markEverUsed() { localStorage.setItem("everUsedHub", "1"); }
 function markEverRegistered() { localStorage.setItem("everRegistered", "1"); }
 /* Console helpers — paste into DevTools if you want to reset UI state for testing */
 window.showRegisterAgain = () => { localStorage.removeItem("everRegistered"); localStorage.removeItem("everUsedHub"); console.log("✅ Register button will appear next time the login modal opens"); };
 window.forceMergeNow     = async () => { await syncMergeProgress(); console.log("✅ Force merge complete"); };
+/* The big diagnostic — call debugSync() in console and paste the output to me */
+window.debugSync = async () => {
+  const accountKey = localStorage.getItem("flappyAccountKey");
+  console.group("===== SYNC DIAGNOSTIC =====");
+  console.log("URL:", location.href);
+  console.log("Account:", {
+    name: localStorage.getItem("flappyName"),
+    key:  accountKey,
+    type: localStorage.getItem("flappyAccountType"),
+    everRegistered: localStorage.getItem("everRegistered")
+  });
+  const localData = collectProgress();
+  console.log("LOCAL progress data:", localData);
+  if (!progressRef) { console.error("❌ Firebase progressRef is null — Firebase didn't init"); console.groupEnd(); return; }
+  if (!accountKey) { console.error("❌ No accountKey in localStorage — not logged in"); console.groupEnd(); return; }
+  console.log("Reading cloud...");
+  const snap = await progressRef.child(accountKey).once("value");
+  const cloudNode = snap.val();
+  console.log("CLOUD raw:", cloudNode);
+  console.log("CLOUD data:", cloudNode && cloudNode.data ? cloudNode.data : "(empty)");
+  console.log("_syncReady:", _syncReady);
+  console.log("Now running merge...");
+  await syncMergeProgress();
+  console.log("AFTER merge — local data:", collectProgress());
+  console.log("✅ Done. If still not synced, copy this whole output and send to chat.");
+  console.groupEnd();
+};
 /* Called from Settings when a Guest wants to convert their current progress into a real account */
 function upgradeToAccount() {
   closeSettings();
@@ -765,6 +823,9 @@ function loginChoose(mode) {
   document.getElementById("loginStage2").style.display = "";
   document.getElementById("btnLoginSubmit").textContent = t(mode === "register" ? "btnLoginSubmitR" : "btnLoginSubmitL");
   document.getElementById("loginError").textContent = "";
+  /* Mirror the Cancel-logout button visibility on stage 2 */
+  const cancelBtn2 = document.getElementById("btnCancelLogout2");
+  if (cancelBtn2) cancelBtn2.style.display = sessionStorage.getItem("prevAccount") ? "" : "none";
   document.getElementById("loginNameInput").focus();
 }
 async function loginSubmit() {
@@ -810,13 +871,34 @@ async function loginSubmit() {
       markEverUsed(); markEverRegistered();
       /* New account — push the current local progress up as the first cloud save */
       await uploadProgress();
+      _syncReady = true;
       closeLogin();
       renderWelcome();
     } else {
-      /* Login — check existing */
+      /* Smart Login — if account doesn't exist, auto-create it with these credentials */
       if (!snap.exists()) {
-        errEl.textContent = "❌ No account with that name."; return;
+        /* Block auto-create while already logged in as another registered account */
+        if (localStorage.getItem("flappyAccountType") === "registered") {
+          errEl.textContent = "❌ Already logged in — logout first to make a new account."; return;
+        }
+        /* Auto-register: any name that isn't taken yet, you can claim by logging in once. */
+        await usersRef.child(key).set({
+          name: nameInput,
+          pwd: hashed,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        });
+        localStorage.setItem("flappyName", nameInput);
+        localStorage.setItem("flappyAccountType", "registered");
+        localStorage.setItem("flappyAccountKey", key);
+        markEverUsed(); markEverRegistered();
+        await uploadProgress();
+        _syncReady = true;
+        showSyncStatus(t("autoCreated"));
+        closeLogin();
+        renderWelcome();
+        return;
       }
+      /* Account exists — verify password */
       const data = snap.val();
       if (data.pwd !== hashed) {
         errEl.textContent = "❌ Wrong password."; return;
@@ -835,13 +917,42 @@ async function loginSubmit() {
     console.warn(e);
   }
 }
-function closeLogin() { document.getElementById("loginBackdrop").classList.remove("show"); }
+function closeLogin() {
+  document.getElementById("loginBackdrop").classList.remove("show");
+  /* Successful login completed — drop the "previous account" snapshot so Cancel doesn't undo it */
+  sessionStorage.removeItem("prevAccount");
+}
 function logout() {
+  /* Snapshot the current account BEFORE clearing — so user can press Cancel and return to it */
+  const prevName = localStorage.getItem("flappyName");
+  if (prevName) {
+    sessionStorage.setItem("prevAccount", JSON.stringify({
+      name: prevName,
+      type: localStorage.getItem("flappyAccountType"),
+      key:  localStorage.getItem("flappyAccountKey")
+    }));
+  }
   localStorage.removeItem("flappyName");
   localStorage.removeItem("flappyAccountType");
   localStorage.removeItem("flappyAccountKey");
+  closeSettings();
   document.getElementById("loginBackdrop").classList.add("show");
   showStage1();
+}
+function cancelLogout() {
+  /* Restore the snapshot saved by logout() and dismiss the modal */
+  const raw = sessionStorage.getItem("prevAccount");
+  if (!raw) { closeLogin(); return; }
+  try {
+    const prev = JSON.parse(raw);
+    if (prev.name) localStorage.setItem("flappyName", prev.name);
+    if (prev.type) localStorage.setItem("flappyAccountType", prev.type);
+    if (prev.key)  localStorage.setItem("flappyAccountKey",  prev.key);
+  } catch {}
+  sessionStorage.removeItem("prevAccount");
+  document.getElementById("loginBackdrop").classList.remove("show");
+  refreshWallet();
+  renderWelcome();
 }
 /* Enter key submits in login form */
 ["loginNameInput", "loginPwdInput"].forEach(id => {
