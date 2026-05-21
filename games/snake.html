@@ -792,7 +792,7 @@
       <div style="font-size:12px; opacity:0.7; margin-bottom:6px" data-i18n="outOfDiamonds">Out of diamonds?</div>
       <div class="tradeBox">
         <div class="tradeInfo" data-i18n="tradeInfo">Trade <b id="tradeQty">1</b> 💎 — cost <b id="tradeCost">400</b> 💰</div>
-        <input type="range" id="tradeSlider" min="1" max="25" value="1" oninput="updateTradeUI()">
+        <input type="range" id="tradeSlider" min="1" max="1" value="1" oninput="updateTradeUI()">
         <button class="tradeBtn" onclick="executeTrade()" data-i18n="tradeBtn">💱 Trade</button>
       </div>
     </div>
@@ -839,6 +839,39 @@
 </div>
 
 <script>
+/* ============ Audio (Web Audio API — reads flappyVolume 0-100) ============ */
+const audioCtx = (window.AudioContext || window.webkitAudioContext)
+  ? new (window.AudioContext || window.webkitAudioContext)() : null;
+function volume01() { return Math.max(0, Math.min(100, parseInt(localStorage.getItem("flappyVolume") || "50", 10))) / 100; }
+function playTone(freq, dur, type = "square", baseVol = 0.1) {
+  if (!audioCtx) return;
+  const v = baseVol * volume01();
+  if (v <= 0) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type; osc.frequency.value = freq;
+    g.gain.value = v;
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + dur);
+  } catch {}
+}
+const SFX = {
+  eat:       () => { playTone(660, 0.06, "square", 0.10); setTimeout(() => playTone(880, 0.06, "square", 0.10), 40); },
+  gem:       () => { playTone(1200, 0.05, "sine", 0.12); setTimeout(() => playTone(1600, 0.08, "sine", 0.10), 40); },
+  hit:       () => playTone(120, 0.20, "sawtooth", 0.18),
+  gameOver:  () => { [330, 220, 150].forEach((f, i) => setTimeout(() => playTone(f, 0.18, "sawtooth", 0.15), i * 100)); },
+  pause:     () => playTone(440, 0.06, "sine", 0.10),
+  start:     () => { [440, 660].forEach((f, i) => setTimeout(() => playTone(f, 0.08, "square", 0.12), i * 70)); },
+  skill:     () => { playTone(800, 0.06, "square", 0.14); setTimeout(() => playTone(1200, 0.08, "sine", 0.12), 50); },
+  coin:      () => { playTone(880, 0.04, "sine", 0.10); setTimeout(() => playTone(1100, 0.06, "sine", 0.10), 30); },
+  wish:      () => { playTone(880, 0.06, "sine", 0.12); setTimeout(() => playTone(1320, 0.08, "sine", 0.12), 60); },
+  wish10:    () => { [660, 880, 1100, 1320].forEach((f, i) => setTimeout(() => playTone(f, 0.10, "sine", 0.14), i * 70)); },
+  rare4:     () => { [880, 1200, 1600].forEach((f, i) => setTimeout(() => playTone(f, 0.14, "triangle", 0.16), i * 90)); },
+  rare5:     () => { [523, 784, 1047, 1318, 1568].forEach((f, i) => setTimeout(() => playTone(f, 0.18, "sine", 0.20), i * 110)); }
+};
+
 /* ============ Shared wallet (synced with Gacha Flyer) ============ */
 const WALLET = {
   get coins()    { return parseInt(localStorage.getItem("flappyCoins")    || "0", 10); },
@@ -1320,6 +1353,7 @@ function step() {
 
   if ((hitObstacle && !invincible) || (hitSelf && !ghosting && !invincible)) {
     lives--;
+    SFX.hit();
     livesEl.textContent = "❤".repeat(Math.max(0, lives));
     if (lives <= 0) return gameOver();
     toast(t("lifeLost", { n: lives }));
@@ -1334,10 +1368,12 @@ function step() {
     score++;
     appleCount++;
     WALLET.coins += 1;
+    SFX.eat();
     if (Math.random() < 0.03) {
       WALLET.diamonds += 1;
       runDiamonds++;
       toast(t("diamondGet"));
+      SFX.gem();
     }
     scoreEl.textContent = score;
     if (score > best) {
@@ -1619,6 +1655,7 @@ function startPlaying() {
   state = "playing";
   countdownEnd = performance.now() + PREP_MS;
   lastTick = countdownEnd;
+  SFX.start();
 }
 
 function anyPopupOpen() {
@@ -1652,6 +1689,7 @@ function autoResumeOnPopupClose() {
 }
 
 function gameOver() {
+  SFX.gameOver();
   recordRun(score);
   saveRecord(score);
   showMenu(
@@ -1842,11 +1880,15 @@ function makeWish() {
   const r = rollWish();
   const applied = applyWishResult(r);
   showWishResult(r, applied);
+  SFX.wish();
+  if (r.rarity === 5) SFX.rare5();
+  else if (r.rarity === 4) SFX.rare4();
 }
 
 function makeTenWish() {
   if (WALLET.diamonds < 10) return toast(t("needTenGems"));
   WALLET.diamonds -= 10;
+  SFX.wish10();
   const results = [];
   let highestRarity = 3;
   let totalCoins = 0;
@@ -1882,7 +1924,8 @@ function makeTenWish() {
   document.getElementById("wishItem").innerHTML = `<div class="wishGrid">${grid}</div>`;
   document.getElementById("wishItem").className = "";
   document.getElementById("wishMessage").innerHTML = t("tenPullSum", { n: totalCoins });
-  if (highestRarity === 5) flash5Star();
+  if (highestRarity === 5) { flash5Star(); SFX.rare5(); }
+  else if (highestRarity === 4) SFX.rare4();
 }
 
 function claimFirstWish() {
@@ -1896,11 +1939,17 @@ function claimFirstWish() {
   const r = { rarity: 4, item: it };
   applyWishResult(r);
   showWishResult(r, { dup: false, coinsGained: 0 });
+  SFX.wish();
+  SFX.rare4();
 }
 
 function updateTradeUI() {
   const slider = document.getElementById("tradeSlider");
   if (!slider) return;
+  /* Slider max = how many diamonds the player can afford (1 min so always usable) */
+  const affordable = Math.max(1, Math.floor(WALLET.coins / TRADE_RATE));
+  slider.max = affordable;
+  if (parseInt(slider.value, 10) > affordable) slider.value = affordable;
   const qty = parseInt(slider.value, 10);
   document.getElementById("tradeQty").textContent  = qty;
   document.getElementById("tradeCost").textContent = qty * TRADE_RATE;

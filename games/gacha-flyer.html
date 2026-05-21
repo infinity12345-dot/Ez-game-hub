@@ -878,7 +878,7 @@
     <div style="font-size:12px; opacity:0.7; margin-bottom:6px" data-i18n="outOfDiamonds">Out of diamonds?</div>
     <div class="tradeBox">
       <div class="tradeInfo">Trade <b id="tradeQty">1</b> 💎 — cost <b id="tradeCost">400</b> 💰</div>
-      <input type="range" id="tradeSlider" min="1" max="25" value="1" oninput="updateTradeUI()">
+      <input type="range" id="tradeSlider" min="1" max="1" value="1" oninput="updateTradeUI()">
       <button class="tiny" onclick="executeTrade()" style="background:linear-gradient(90deg,#ffaa00,#1e88e5);color:white;font-weight:bold;padding:6px 14px;margin-top:6px" data-i18n="tradeBtn">💱 Trade</button>
     </div>
   </div>
@@ -1752,7 +1752,13 @@ function play5StarAnimation() {
 }
 
 function updateTradeUI() {
-  const qty = parseInt(document.getElementById("tradeSlider").value);
+  const slider = document.getElementById("tradeSlider");
+  if (!slider) return;
+  /* Slider max = how many diamonds the player can actually afford (1 minimum so it's always usable) */
+  const affordable = Math.max(1, Math.floor(coins / 400));
+  slider.max = affordable;
+  if (parseInt(slider.value, 10) > affordable) slider.value = affordable;
+  const qty = parseInt(slider.value, 10);
   document.getElementById("tradeQty").textContent = qty;
   document.getElementById("tradeCost").textContent = qty * 400;
 }

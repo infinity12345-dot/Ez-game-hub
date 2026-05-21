@@ -625,9 +625,12 @@
         <hr style="margin:14px 0 10px; border:none; border-top:1px solid rgba(255,255,255,0.12)">
         <div style="font-size:12px; opacity:0.7; margin-bottom:6px" data-i18n="outOfDiamonds">Out of diamonds?</div>
         <div class="tradeBox">
-          <div class="tradeInfo" data-i18n="tradeInfo">Trade <b id="tradeQty">1</b> 💎 — cost <b id="tradeCost">400</b> 💰</div>
-          <input type="range" id="tradeSlider" min="1" max="25" value="1" oninput="updateTradeUI()">
-          <button class="tradeBtn" onclick="executeTrade()" data-i18n="tradeBtn">💱 Trade</button>
+          <div class="tradeInfo" data-i18n="tradeInfo">Trade <b id="tradeQty">1</b> 💎 — cost <b id="tradeCost">400</b> hub 💰</div>
+          <input type="range" id="tradeSlider" min="1" max="1" value="1" oninput="updateTradeUI()">
+          <button class="tradeBtn" onclick="executeTrade()" data-i18n="tradeBtn">💱 Trade 💰 → 💎</button>
+          <div class="tradeInfo" style="margin-top:10px"><span data-i18n="reverseTradeLabel">Trade</span> <b id="reverseQty">1</b> 💎 → <b id="reverseGain">400</b> hub 💰</div>
+          <input type="range" id="reverseSlider" min="1" max="1" value="1" oninput="updateReverseUI()">
+          <button class="tradeBtn" onclick="executeReverse()" data-i18n="reverseTradeBtn">💱 Trade 💎 → 💰</button>
         </div>
         <hr style="margin:14px 0 10px; border:none; border-top:1px solid rgba(255,255,255,0.12)">
         <div style="font-size:12px; opacity:0.7; margin-bottom:6px" data-i18n="redeemHeader">Redeem to gamehub wallet (5:1)</div>
@@ -636,6 +639,8 @@
           <div style="font-size:11px;opacity:.75;margin:4px 0">
             🏛 <b id="hubCoins">0</b> 💰
           </div>
+          <div class="tradeInfo"><span data-i18n="redeemQtyLabel">Redeem</span> <b id="redeemQty">1</b> hub 💰 — <span data-i18n="redeemCostLabel">cost</span> <b id="redeemCost">5</b> 🪙</div>
+          <input type="range" id="redeemSlider" min="1" max="1" value="1" oninput="updateRedeemUI()">
           <button class="tradeBtn" onclick="redeem('coins')" data-i18n="redeemCoinsBtn">💱 Redeem 🪙 → 💰</button>
         </div>
       </div>
@@ -786,15 +791,17 @@
   };
   const REDEEM_RATE = 5; /* 5 knife 💰 → 1 hub 💰 (same for 💎) */
   function redeem(kind) {
-    /* Only coins are redeemable now — diamonds are shared with the gamehub directly. */
-    const haveLocal = WALLET.coins;
-    if (haveLocal < REDEEM_RATE) return toast(t("redeemTooFew", { rate: REDEEM_RATE, kind: "🪙" }));
-    const qty = Math.floor(haveLocal / REDEEM_RATE);
-    WALLET.coins     = haveLocal - qty * REDEEM_RATE;
+    /* Slider-driven — redeem N hub coins, costing N × REDEEM_RATE knife coins */
+    const slider = document.getElementById("redeemSlider");
+    const qty = slider ? parseInt(slider.value, 10) : 1;
+    const cost = qty * REDEEM_RATE;
+    if (WALLET.coins < cost) return toast(t("redeemTooFew", { rate: REDEEM_RATE, kind: "🪙" }));
+    WALLET.coins     = WALLET.coins - cost;
     HUB_WALLET.coins = HUB_WALLET.coins + qty;
     toast(t("redeemDone", { qty, kind: "💰" }));
     refreshHubBalance();
     refreshHUD();
+    updateRedeemUI();
     SFX.coin();
   }
   function refreshHubBalance() {
@@ -802,6 +809,42 @@
     const g = document.getElementById("hubGems");
     if (c) c.textContent = HUB_WALLET.coins;
     if (g) g.textContent = HUB_WALLET.diamonds;
+  }
+  /* Redeem slider — max = how many hub coins your knife purse can buy at the 5:1 rate */
+  function updateRedeemUI() {
+    const slider = document.getElementById("redeemSlider");
+    if (!slider) return;
+    const affordable = Math.max(1, Math.floor(WALLET.coins / REDEEM_RATE));
+    slider.max = affordable;
+    if (parseInt(slider.value, 10) > affordable) slider.value = affordable;
+    const qty = parseInt(slider.value, 10);
+    document.getElementById("redeemQty").textContent  = qty;
+    document.getElementById("redeemCost").textContent = qty * REDEEM_RATE;
+  }
+  /* Reverse trade — sell N diamonds for N × TRADE_RATE knife coins */
+  function updateReverseUI() {
+    const slider = document.getElementById("reverseSlider");
+    if (!slider) return;
+    const affordable = Math.max(1, WALLET.diamonds || 1);
+    slider.max = affordable;
+    if (parseInt(slider.value, 10) > affordable) slider.value = affordable;
+    const qty = parseInt(slider.value, 10);
+    document.getElementById("reverseQty").textContent  = qty;
+    document.getElementById("reverseGain").textContent = qty * TRADE_RATE;
+  }
+  function executeReverse() {
+    const slider = document.getElementById("reverseSlider");
+    const qty = slider ? parseInt(slider.value, 10) : 1;
+    if (WALLET.diamonds < qty) return toast(t("notEnoughGem"));
+    const gain = qty * TRADE_RATE;
+    /* Selling diamonds gives back HUB coins (matching the new "only hub coins trade with diamonds" rule) */
+    WALLET.diamonds -= qty;
+    HUB_WALLET.coins += gain;
+    toast(t("reverseDone", { gain, qty }));
+    refreshHubBalance();
+    refreshHUD();
+    refreshWishUI();
+    SFX.coin();
   }
 
   /* ============ i18n ============ */
@@ -845,7 +888,7 @@
       pityLine: "Pity: ★★★★★ <b id=\"pity5Display\" style=\"color:#ffd54f\">0</b>/70 · ★★★★ <b id=\"pity4Display\" style=\"color:#ce93d8\">0</b>/20<br><span style=\"opacity:0.7; font-size:11px\">10× pull guarantees at least one ★★★★</span>",
       wish1Btn: "✨ Wish (1 💎)", wish10Btn: "✨✨ Wish 10× (10 💎)",
       outOfDiamonds: "Out of diamonds?",
-      tradeInfo: "Trade <b id=\"tradeQty\">1</b> 💎 — cost <b id=\"tradeCost\">400</b> 💰",
+      tradeInfo: "Trade <b id=\"tradeQty\">1</b> 💎 — cost <b id=\"tradeCost\">400</b> hub 💰",
       tradeBtn: "💱 Trade",
       wishAgain: "Wish again",
       tenPullSum: "+{n} 💰 from this pull",
@@ -971,6 +1014,12 @@
       redeemHeader:   "Redeem knife coins to gamehub wallet",
       redeemInfo:     "5 knife 🪙 → 1 hub 💰 · diamonds are already shared",
       redeemCoinsBtn: "💱 Redeem 🪙 → 💰",
+    redeemQtyLabel: "Redeem",
+    redeemCostLabel: "cost",
+    reverseTradeLabel: "Trade",
+    reverseTradeBtn:   "💱 Trade 💎 → 💰",
+    reverseDone:       "hub 💰 +{gain} from selling {qty} 💎",
+    tradeBtn:          "💱 Trade 💰 → 💎",
       redeemTooFew:   "Need at least {rate} {kind} to redeem",
       redeemDone:     "✓ Redeemed +{qty} {kind} to gamehub wallet",
       btnEnterLobby:  "▶ Enter Lobby",
@@ -1073,7 +1122,7 @@
       pityLine: "保底:★★★★★ <b id=\"pity5Display\" style=\"color:#ffd54f\">0</b>/70 · ★★★★ <b id=\"pity4Display\" style=\"color:#ce93d8\">0</b>/20<br><span style=\"opacity:0.7; font-size:11px\">10 連抽保證至少一個 ★★★★</span>",
       wish1Btn: "✨ 許願 (1 💎)", wish10Btn: "✨✨ 10 連抽 (10 💎)",
       outOfDiamonds: "鑽石不夠?",
-      tradeInfo: "兌換 <b id=\"tradeQty\">1</b> 💎 — 花費 <b id=\"tradeCost\">400</b> 💰",
+      tradeInfo: "兌換 <b id=\"tradeQty\">1</b> 💎 — 花費 <b id=\"tradeCost\">400</b> 中心 💰",
       tradeBtn: "💱 兌換",
       wishAgain: "再次許願",
       tenPullSum: "本次獲得 +{n} 💰",
@@ -1196,6 +1245,12 @@
       redeemHeader:   "兌換刀幣到遊戲中心錢包",
       redeemInfo:     "5 刀幣 🪙 → 1 中心 💰 · 鑽石已共享",
       redeemCoinsBtn: "💱 兌換 🪙 → 💰",
+    redeemQtyLabel: "兌換",
+    redeemCostLabel: "花費",
+    reverseTradeLabel: "兌換",
+    reverseTradeBtn:   "💱 兌換 💎 → 💰",
+    reverseDone:       "中心 💰 +{gain}(賣出 {qty} 💎)",
+    tradeBtn:          "💱 兌換 💰 → 💎",
       redeemTooFew:   "至少需要 {rate} 個 {kind} 才能兌換",
       redeemDone:     "✓ 已兌換 +{qty} {kind} 至遊戲中心錢包",
       btnEnterLobby:  "▶ 進入大廳",
@@ -5024,6 +5079,8 @@
     document.getElementById("wishGoBtn").disabled  = WALLET.diamonds < 1;
     document.getElementById("wishTenBtn").disabled = WALLET.diamonds < 10;
     updateTradeUI();
+    updateReverseUI();
+    updateRedeemUI();
   }
   function rollWish(force4 = false) {
     let p5 = PITY.p5 + 1, p4 = PITY.p4 + 1;
@@ -5188,6 +5245,10 @@
   function updateTradeUI() {
     const slider = document.getElementById("tradeSlider");
     if (!slider) return;
+    /* Trade uses HUB coins (shared gamehub 💰), NOT knife coins. Knife coins can't buy diamonds. */
+    const affordable = Math.max(1, Math.floor(HUB_WALLET.coins / TRADE_RATE));
+    slider.max = affordable;
+    if (parseInt(slider.value, 10) > affordable) slider.value = affordable;
     const qty = parseInt(slider.value, 10);
     document.getElementById("tradeQty").textContent  = qty;
     document.getElementById("tradeCost").textContent = qty * TRADE_RATE;
@@ -5195,10 +5256,13 @@
   function executeTrade() {
     const qty = parseInt(document.getElementById("tradeSlider").value, 10);
     const cost = qty * TRADE_RATE;
-    if (WALLET.coins < cost) return toast(t("needCoins", { cost, have: WALLET.coins }));
+    /* Cost comes out of HUB coins, not knife coins */
+    if (HUB_WALLET.coins < cost) return toast(t("needCoins", { cost, have: HUB_WALLET.coins }));
     if (!confirm(t("confirmTrade", { cost, qty }))) return;
-    WALLET.coins -= cost;
+    HUB_WALLET.coins -= cost;
     WALLET.diamonds += qty;
+    refreshHubBalance();
+    refreshHUD();
     refreshWishUI();
     toast(t("diamondsAdded", { n: qty, s: qty > 1 ? "s" : "" }));
   }
