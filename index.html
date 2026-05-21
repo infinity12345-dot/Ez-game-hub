@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>EZ Game Hub</title>
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎮</text></svg>'>
+<!-- Firebase Realtime Database — used for unique-name registration across all players -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -262,20 +265,44 @@
       <input type="range" id="inputVol" min="0" max="100">
     </div>
     <button class="btn" onclick="saveSettings()" id="btnSave">Save</button>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button class="btn secondary" onclick="uploadProgress()" id="btnCloudSave"  style="flex:1">☁ Save</button>
+      <button class="btn secondary" onclick="downloadProgress()" id="btnCloudLoad" style="flex:1">⬇ Load</button>
+    </div>
+    <button class="btn" onclick="upgradeToAccount()" id="btnUpgradeAccount" style="margin-top:6px;display:none">📝 Register This Progress</button>
+    <button class="btn secondary" onclick="logout()" style="margin-top:6px" id="btnLogout">🚪 Logout / Switch User</button>
   </div>
 </div>
 
-<!-- NAME-PROMPT MODAL -->
-<div id="namePromptBackdrop" class="backdrop">
+<!-- LOGIN / REGISTER / GUEST MODAL -->
+<div id="loginBackdrop" class="backdrop">
   <div class="modal">
-    <h2 id="welcomeTitle">👋 Welcome to EZ Game Hub!</h2>
-    <p style="font-size:13px;opacity:.85;text-align:center" id="welcomeText">
-      What's your name?
+    <h2 id="loginWelcomeTitle">👋 Welcome to EZ Game Hub!</h2>
+    <p style="font-size:13px;opacity:.85;text-align:center;margin-bottom:6px" id="loginTagline">
+      Login to keep your unique name across devices, or play as a Guest.
     </p>
-    <div class="field">
-      <input type="text" id="firstNameInput" maxlength="20" placeholder="Type your name">
+
+    <!-- Stage 1 — choose mode. Register button is now hidden unless explicitly needed via JS. -->
+    <div id="loginStage1">
+      <button class="btn" onclick="loginChoose('login')"    id="btnLoginMode">🔑 Login</button>
+      <button class="btn secondary" onclick="loginChoose('register')" id="btnRegisterMode" style="margin-top:8px;display:none">📝 Register New</button>
+      <button class="btn secondary" onclick="loginChoose('guest')"    id="btnGuestMode" style="margin-top:8px">👤 Play as Guest</button>
     </div>
-    <button class="btn" onclick="saveFirstName()" id="btnConfirm">Let's go!</button>
+
+    <!-- Stage 2 — login OR register form -->
+    <div id="loginStage2" style="display:none">
+      <div class="field">
+        <label id="lblLoginName">Username (3-16 chars, no spaces)</label>
+        <input type="text" id="loginNameInput" maxlength="16" placeholder="username" autocomplete="username">
+      </div>
+      <div class="field">
+        <label id="lblLoginPwd">Password (4+ chars)</label>
+        <input type="password" id="loginPwdInput" maxlength="40" placeholder="password" autocomplete="current-password">
+      </div>
+      <div id="loginError" style="color:#ef5350;font-size:12px;text-align:center;min-height:18px"></div>
+      <button class="btn" onclick="loginSubmit()" id="btnLoginSubmit">Continue</button>
+      <button class="btn secondary" onclick="loginBack()" style="margin-top:6px" id="btnLoginBack">← Back</button>
+    </div>
   </div>
 </div>
 
@@ -337,10 +364,22 @@ const I18N = {
     lblLang:       "Language",
     lblVol:        "Volume",
     btnSave:       "Save",
-    welcomeTitle:  "👋 Welcome to EZ Game Hub!",
-    welcomeText:   "What's your name?",
-    btnConfirm:    "Let's go!",
-    foot:          "Made by Justin · Pick a game and have fun!"
+    btnLogout:     "🚪 Logout / Switch User",
+    btnUpgradeAccount: "📝 Register This Progress",
+    foot:          "Made by Justin · Pick a game and have fun!",
+    /* Login modal */
+    loginWelcomeTitle: "👋 Welcome to EZ Game Hub!",
+    loginTagline:      "Login for a unique name across devices, or play as Guest.",
+    btnLoginMode:      "🔑 Login",
+    btnRegisterMode:   "📝 Register New",
+    btnGuestMode:      "👤 Play as Guest",
+    guestWarn:         "⚠️ Playing as Guest will RESET all local progress (coins, pets, records, levels) to zero.\n\nYour registered account's CLOUD save is SAFE — logging back in will restore everything.\n\nContinue as Guest?",
+    lblLoginName:      "Username (3-16 chars, no spaces)",
+    lblLoginPwd:       "Password (4+ chars)",
+    btnLoginSubmit:    "Continue",
+    btnLoginSubmitR:   "📝 Register & Play",
+    btnLoginSubmitL:   "🔑 Login",
+    btnLoginBack:      "← Back"
   },
   zh: {
     welcome:       "歡迎回來,{name}!",
@@ -349,10 +388,22 @@ const I18N = {
     lblLang:       "語言",
     lblVol:        "音量",
     btnSave:       "儲存",
-    welcomeTitle:  "👋 歡迎來到 EZ 遊戲中心!",
-    welcomeText:   "你的名字是?",
-    btnConfirm:    "出發!",
-    foot:          "由 Justin 製作 · 選一款遊戲開始吧!"
+    btnLogout:     "🚪 登出 / 切換帳號",
+    btnUpgradeAccount: "📝 將此進度註冊為帳號",
+    foot:          "由 Justin 製作 · 選一款遊戲開始吧!",
+    /* Login modal */
+    loginWelcomeTitle: "👋 歡迎來到 EZ 遊戲中心!",
+    loginTagline:      "登入即可在不同裝置使用同一名字,或以訪客身份遊玩。",
+    btnLoginMode:      "🔑 登入",
+    btnRegisterMode:   "📝 註冊新帳號",
+    btnGuestMode:      "👤 訪客身份",
+    guestWarn:         "⚠️ 訪客模式會將本機的所有進度(金幣、寵物、紀錄、等級)歸零。\n\n你的已註冊帳號雲端存檔不受影響 — 重新登入即可恢復。\n\n確定要以訪客身份遊玩嗎?",
+    lblLoginName:      "用戶名(3-16 字元,不含空格)",
+    lblLoginPwd:       "密碼(4 字元以上)",
+    btnLoginSubmit:    "繼續",
+    btnLoginSubmitR:   "📝 註冊並開始",
+    btnLoginSubmitL:   "🔑 登入",
+    btnLoginBack:      "← 返回"
   }
 };
 
@@ -366,15 +417,33 @@ function t(k, vars) {
 
 function applyLang() {
   document.documentElement.lang = curLang === "zh" ? "zh-Hant" : "en";
-  document.getElementById("settingsTitle").textContent = t("settingsTitle");
-  document.getElementById("lblName").textContent = t("lblName");
-  document.getElementById("lblLang").textContent = t("lblLang");
-  document.getElementById("lblVol").innerHTML   = t("lblVol") + ' <span id="volVal">' + (localStorage.getItem("flappyVolume") || "50") + "</span>%";
-  document.getElementById("btnSave").textContent = t("btnSave");
-  document.getElementById("welcomeTitle").textContent = t("welcomeTitle");
-  document.getElementById("welcomeText").textContent  = t("welcomeText");
-  document.getElementById("btnConfirm").textContent   = t("btnConfirm");
-  document.querySelector(".creditFoot").textContent   = t("foot");
+  /* Helper — set text on an element only if it exists, never crash from a missing ID */
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  const setHTML = (id, val) => { const el = document.getElementById(id); if (el) el.innerHTML = val; };
+  setText("settingsTitle", t("settingsTitle"));
+  setText("lblName",       t("lblName"));
+  setText("lblLang",       t("lblLang"));
+  setHTML("lblVol",        t("lblVol") + ' <span id="volVal">' + (localStorage.getItem("flappyVolume") || "50") + "</span>%");
+  setText("btnSave",       t("btnSave"));
+  setText("btnLogout",     t("btnLogout"));
+  setText("btnUpgradeAccount", t("btnUpgradeAccount"));
+  /* Login modal labels */
+  setText("loginWelcomeTitle", t("loginWelcomeTitle"));
+  setText("loginTagline",      t("loginTagline"));
+  setText("btnLoginMode",      t("btnLoginMode"));
+  setText("btnRegisterMode",   t("btnRegisterMode"));
+  setText("btnGuestMode",      t("btnGuestMode"));
+  setText("lblLoginName",      t("lblLoginName"));
+  setText("lblLoginPwd",       t("lblLoginPwd"));
+  setText("btnLoginBack",      t("btnLoginBack"));
+  /* Submit button text changes based on current mode (login vs register) */
+  const submitBtn = document.getElementById("btnLoginSubmit");
+  if (submitBtn) {
+    submitBtn.textContent = _loginMode === "register" ? t("btnLoginSubmitR") : t("btnLoginSubmitL");
+  }
+  /* Footer credit */
+  const foot = document.querySelector(".creditFoot");
+  if (foot) foot.textContent = t("foot");
   renderWelcome();
   renderGrid();
 }
@@ -439,6 +508,12 @@ function openSettings() {
   const v = parseInt(localStorage.getItem("flappyVolume") || "50", 10);
   document.getElementById("inputVol").value  = v;
   document.getElementById("volVal").textContent = v;
+  /* Show "Register This Progress" only for guests — registered users don't need it */
+  const upBtn = document.getElementById("btnUpgradeAccount");
+  if (upBtn) {
+    const isGuest = localStorage.getItem("flappyAccountType") === "guest";
+    upBtn.style.display = isGuest ? "" : "none";
+  }
   document.getElementById("settingsBackdrop").classList.add("show");
 }
 function closeSettings() {
@@ -469,27 +544,322 @@ document.getElementById("inputVol").addEventListener("input", e => {
   } catch {}
 });
 
-/* ============ First-visit name prompt ============ */
-function maybeShowNamePrompt() {
+/* ============ Login System (Firebase-backed unique names) ============ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBx1dPrUE5POsZXa60QAk75p4jfdVvlX_0",
+  authDomain: "flappy-bird-25127.firebaseapp.com",
+  databaseURL: "https://flappy-bird-25127-default-rtdb.firebaseio.com",
+  projectId: "flappy-bird-25127",
+  storageBucket: "flappy-bird-25127.firebasestorage.app",
+  messagingSenderId: "445319714544",
+  appId: "1:445319714544:web:a95e2dd3087cc0eeaed435"
+};
+let usersRef = null, progressRef = null;
+try {
+  firebase.initializeApp(firebaseConfig);
+  usersRef    = firebase.database().ref("hubUsers");
+  progressRef = firebase.database().ref("hubProgress");
+} catch (e) { console.warn("Firebase init failed — guest mode only", e); }
+
+/* ============ Cloud progress sync ============
+   Saves coins, pets, levels, records to Firebase under your account key.
+   Guests don't sync (no account). Sync triggers: hub load, every 30s, page unload. */
+const SYNC_PREFIXES = ["flappyCoins", "flappyDiamonds", "knife.", "brick.", "snake.", "parkour."];
+function shouldSync(k) { return SYNC_PREFIXES.some(p => k === p || k.startsWith(p)); }
+function collectProgress() {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (shouldSync(k)) data[k] = localStorage.getItem(k);
+  }
+  return data;
+}
+async function uploadProgress() {
+  if (!progressRef) return;
+  const accountKey = localStorage.getItem("flappyAccountKey");
+  if (!accountKey || localStorage.getItem("flappyAccountType") !== "registered") return;
+  try {
+    await progressRef.child(accountKey).set({
+      data: collectProgress(),
+      savedAt: firebase.database.ServerValue.TIMESTAMP
+    });
+    showSyncStatus("☁ Saved");
+  } catch (e) { console.warn("Upload failed", e); }
+}
+async function downloadProgress() {
+  if (!progressRef) return false;
+  const accountKey = localStorage.getItem("flappyAccountKey");
+  if (!accountKey || localStorage.getItem("flappyAccountType") !== "registered") return false;
+  try {
+    const snap = await progressRef.child(accountKey).once("value");
+    if (!snap.exists()) return false;
+    const node = snap.val();
+    const data = node.data || node;
+    Object.keys(data).forEach(k => localStorage.setItem(k, data[k]));
+    refreshWallet();
+    renderWelcome();
+    showSyncStatus("☁ Restored from cloud");
+    return true;
+  } catch (e) { console.warn("Download failed", e); return false; }
+}
+
+/* MERGE sync — combines local + cloud per-key without losing data either way.
+   Used on auto page-load so progress earned in games (which only writes locally) doesn't get wiped. */
+function _safeJSON(s) { try { return JSON.parse(s); } catch { return null; } }
+async function syncMergeProgress() {
+  if (!progressRef) return false;
+  const accountKey = localStorage.getItem("flappyAccountKey");
+  if (!accountKey || localStorage.getItem("flappyAccountType") !== "registered") return false;
+  try {
+    const snap = await progressRef.child(accountKey).once("value");
+    const cloud = snap.exists() ? (snap.val().data || snap.val()) : {};
+    /* Collect every sync-eligible key from both sides */
+    const allKeys = new Set(Object.keys(cloud));
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (shouldSync(k)) allKeys.add(k);
+    }
+    const merged = {};
+    allKeys.forEach(k => {
+      const localVal = localStorage.getItem(k);
+      const cloudVal = cloud[k] != null ? String(cloud[k]) : null;
+      /* 1) Numeric keys — take the MAX so a fresh device never loses coins/levels */
+      const lNum = Number(localVal), cNum = Number(cloudVal);
+      const lIsNum = localVal != null && localVal !== "" && !isNaN(lNum) && String(lNum) === localVal;
+      const cIsNum = cloudVal != null && cloudVal !== "" && !isNaN(cNum) && String(cNum) === cloudVal;
+      if (lIsNum && cIsNum)         { merged[k] = String(Math.max(lNum, cNum)); return; }
+      if (lIsNum && !cIsNum)        { merged[k] = String(lNum); return; }
+      if (!lIsNum && cIsNum)        { merged[k] = String(cNum); return; }
+      /* 2) JSON arrays — union (e.g. petsOwned, bestiary) */
+      const lArr = _safeJSON(localVal), cArr = _safeJSON(cloudVal);
+      if (Array.isArray(lArr) && Array.isArray(cArr)) {
+        merged[k] = JSON.stringify([...new Set([...lArr, ...cArr])]);
+        return;
+      }
+      if (Array.isArray(lArr)) { merged[k] = localVal; return; }
+      if (Array.isArray(cArr)) { merged[k] = cloudVal; return; }
+      /* 3) JSON objects (e.g. knife.petLevels) — shallow merge with MAX for numeric values */
+      const lObj = (lArr === null && _safeJSON(localVal)) || null;
+      const cObj = (cArr === null && _safeJSON(cloudVal)) || null;
+      if (lObj && typeof lObj === "object" && cObj && typeof cObj === "object" && !Array.isArray(lObj) && !Array.isArray(cObj)) {
+        const mObj = { ...cObj };
+        Object.keys(lObj).forEach(sk => {
+          const lv = lObj[sk], cv = cObj[sk];
+          if (typeof lv === "number" && typeof cv === "number") mObj[sk] = Math.max(lv, cv);
+          else mObj[sk] = (lv != null) ? lv : cv;
+        });
+        merged[k] = JSON.stringify(mObj);
+        return;
+      }
+      /* 4) Plain strings — prefer non-empty local, else cloud */
+      merged[k] = (localVal != null && localVal !== "") ? localVal : (cloudVal || "");
+    });
+    /* Write merged result to local AND back to cloud */
+    Object.keys(merged).forEach(k => localStorage.setItem(k, merged[k]));
+    await progressRef.child(accountKey).set({
+      data: merged,
+      savedAt: firebase.database.ServerValue.TIMESTAMP
+    });
+    refreshWallet();
+    renderWelcome();
+    showSyncStatus("☁ Synced");
+    return true;
+  } catch (e) { console.warn("Merge sync failed", e); return false; }
+}
+function showSyncStatus(msg) {
+  let el = document.getElementById("syncStatus");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "syncStatus";
+    el.style.cssText = "position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#aed581;padding:6px 14px;border-radius:14px;font-size:12px;z-index:200;transition:opacity 0.3s;opacity:0;pointer-events:none";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = "1";
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.opacity = "0"; }, 1800);
+}
+/* Periodic upload while hub is open + final upload on tab close */
+setInterval(uploadProgress, 30000);
+window.addEventListener("beforeunload", () => {
+  if (progressRef && localStorage.getItem("flappyAccountKey")) {
+    const accountKey = localStorage.getItem("flappyAccountKey");
+    /* Use synchronous-ish keepalive fetch via Firebase REST so the save happens before tab closes */
+    try {
+      const url = `${firebaseConfig.databaseURL}/hubProgress/${accountKey}.json`;
+      navigator.sendBeacon(url, JSON.stringify({ data: collectProgress(), savedAt: Date.now() }));
+    } catch {}
+  }
+});
+
+/* Simple SHA-256 password hashing so plain passwords never hit storage */
+async function hashPwd(pwd) {
+  const data = new TextEncoder().encode("ezGameHub:" + pwd);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+/* Normalize username for storage (case-insensitive lookup) */
+function nameKey(n) { return n.toLowerCase().replace(/[^a-z0-9_]/g, ""); }
+
+let _loginMode = "login"; /* "login" | "register" */
+function maybeShowLogin() {
   if (!localStorage.getItem("flappyName")) {
-    document.getElementById("namePromptBackdrop").classList.add("show");
+    document.getElementById("loginBackdrop").classList.add("show");
+    showStage1();
   }
 }
-function saveFirstName() {
-  const n = document.getElementById("firstNameInput").value.trim() || "Adventurer";
-  localStorage.setItem("flappyName", n);
-  document.getElementById("namePromptBackdrop").classList.remove("show");
-  renderWelcome();
+function showStage1() {
+  document.getElementById("loginStage1").style.display = "";
+  document.getElementById("loginStage2").style.display = "none";
+  document.getElementById("loginError").textContent = "";
+  /* Register button is hidden if you've EVER registered/logged-in on this browser
+     OR are currently a registered user. Guests can still see it (to upgrade their progress). */
+  const isRegistered = localStorage.getItem("flappyAccountType") === "registered";
+  const everReg     = localStorage.getItem("everRegistered") === "1";
+  const regBtn      = document.getElementById("btnRegisterMode");
+  if (regBtn) regBtn.style.display = (isRegistered || everReg) ? "none" : "";
 }
-document.getElementById("firstNameInput").addEventListener("keydown", e => {
-  if (e.key === "Enter") saveFirstName();
+function markEverUsed() { localStorage.setItem("everUsedHub", "1"); }
+function markEverRegistered() { localStorage.setItem("everRegistered", "1"); }
+/* Console helpers — paste into DevTools if you want to reset UI state for testing */
+window.showRegisterAgain = () => { localStorage.removeItem("everRegistered"); localStorage.removeItem("everUsedHub"); console.log("✅ Register button will appear next time the login modal opens"); };
+window.forceMergeNow     = async () => { await syncMergeProgress(); console.log("✅ Force merge complete"); };
+/* Called from Settings when a Guest wants to convert their current progress into a real account */
+function upgradeToAccount() {
+  closeSettings();
+  document.getElementById("loginBackdrop").classList.add("show");
+  loginChoose("register");
+}
+function loginBack() { showStage1(); }
+function loginChoose(mode) {
+  /* Registering or guest-switching while already logged in is blocked — must logout first */
+  if ((mode === "register" || mode === "guest") &&
+      localStorage.getItem("flappyAccountType") === "registered") {
+    document.getElementById("loginError").textContent = "❌ Logout first to switch accounts.";
+    return;
+  }
+  if (mode === "guest") {
+    /* Guest mode — wipes all LOCAL progress (clean slate). Registered account's CLOUD save is untouched,
+       so logging back into that account restores everything. Show a confirmation first. */
+    if (!confirm(t("guestWarn"))) return;
+    /* Wipe every synced key from localStorage so guest starts at zero */
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (SYNC_PREFIXES.some(p => k === p || k.startsWith(p))) toRemove.push(k);
+    }
+    toRemove.forEach(k => localStorage.removeItem(k));
+    /* Also clear account ties so this isn't mistaken for the logged-in user anymore */
+    localStorage.removeItem("flappyAccountKey");
+    const guestName = "Guest_" + Math.floor(Math.random() * 9000 + 1000);
+    localStorage.setItem("flappyName", guestName);
+    localStorage.setItem("flappyAccountType", "guest");
+    markEverUsed();
+    refreshWallet();
+    closeLogin();
+    renderWelcome();
+    return;
+  }
+  _loginMode = mode;
+  document.getElementById("loginStage1").style.display = "none";
+  document.getElementById("loginStage2").style.display = "";
+  document.getElementById("btnLoginSubmit").textContent = t(mode === "register" ? "btnLoginSubmitR" : "btnLoginSubmitL");
+  document.getElementById("loginError").textContent = "";
+  document.getElementById("loginNameInput").focus();
+}
+async function loginSubmit() {
+  const nameInput = document.getElementById("loginNameInput").value.trim();
+  const pwd       = document.getElementById("loginPwdInput").value;
+  const errEl     = document.getElementById("loginError");
+  errEl.textContent = "";
+  /* Validate */
+  if (nameInput.length < 3 || nameInput.length > 16) {
+    errEl.textContent = "Name must be 3–16 characters."; return;
+  }
+  if (!/^[A-Za-z0-9_]+$/.test(nameInput)) {
+    errEl.textContent = "Name can only contain letters, numbers, _"; return;
+  }
+  if (pwd.length < 4) {
+    errEl.textContent = "Password must be at least 4 characters."; return;
+  }
+  if (!usersRef) {
+    errEl.textContent = "⚠ Offline — try Guest mode."; return;
+  }
+  const key = nameKey(nameInput);
+  const hashed = await hashPwd(pwd);
+  errEl.textContent = "⏳ Checking...";
+  try {
+    const snap = await usersRef.child(key).once("value");
+    if (_loginMode === "register") {
+      /* Block registering while already signed into ANY account on this browser. Logout first. */
+      if (localStorage.getItem("flappyAccountType") === "registered") {
+        errEl.textContent = "❌ Already logged in — logout first to register a new account."; return;
+      }
+      if (snap.exists()) {
+        errEl.textContent = "❌ Name taken — pick another."; return;
+      }
+      /* Register a new user */
+      await usersRef.child(key).set({
+        name: nameInput,
+        pwd: hashed,
+        createdAt: firebase.database.ServerValue.TIMESTAMP
+      });
+      localStorage.setItem("flappyName", nameInput);
+      localStorage.setItem("flappyAccountType", "registered");
+      localStorage.setItem("flappyAccountKey", key);
+      markEverUsed(); markEverRegistered();
+      /* New account — push the current local progress up as the first cloud save */
+      await uploadProgress();
+      closeLogin();
+      renderWelcome();
+    } else {
+      /* Login — check existing */
+      if (!snap.exists()) {
+        errEl.textContent = "❌ No account with that name."; return;
+      }
+      const data = snap.val();
+      if (data.pwd !== hashed) {
+        errEl.textContent = "❌ Wrong password."; return;
+      }
+      localStorage.setItem("flappyName", data.name);
+      localStorage.setItem("flappyAccountType", "registered");
+      localStorage.setItem("flappyAccountKey", key);
+      markEverUsed(); markEverRegistered();
+      /* MERGE local + cloud so spending on this device + earnings on another both survive */
+      await syncMergeProgress();
+      closeLogin();
+      renderWelcome();
+    }
+  } catch (e) {
+    errEl.textContent = "⚠ Network error — try again or use Guest.";
+    console.warn(e);
+  }
+}
+function closeLogin() { document.getElementById("loginBackdrop").classList.remove("show"); }
+function logout() {
+  localStorage.removeItem("flappyName");
+  localStorage.removeItem("flappyAccountType");
+  localStorage.removeItem("flappyAccountKey");
+  document.getElementById("loginBackdrop").classList.add("show");
+  showStage1();
+}
+/* Enter key submits in login form */
+["loginNameInput", "loginPwdInput"].forEach(id => {
+  document.getElementById(id).addEventListener("keydown", e => {
+    if (e.key === "Enter") loginSubmit();
+  });
 });
 
 /* ============ Init ============ */
 applyLang();
 refreshWallet();
 setInterval(refreshWallet, 1500);  /* poll in case another game tab modified it */
-maybeShowNamePrompt();
+maybeShowLogin();
+/* If already logged in (page refresh), MERGE local + cloud so neither side loses data.
+   Crucial for the "earned coins in a game → return to hub → don't get wiped by stale cloud" case. */
+if (localStorage.getItem("flappyAccountType") === "registered") {
+  setTimeout(() => syncMergeProgress(), 500);
+}
 </script>
 </body>
 </html>

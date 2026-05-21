@@ -825,18 +825,7 @@
   </div>
 </div>
 
-<!-- Required name setup popup -->
-<div id="nameRequired" class="shopPopup">
-  <h3>👤 Pick your player name!</h3>
-  <p style="font-size:14px; line-height:1.5; margin: 10px 0">
-    This will appear on the <b>🌐 global leaderboard</b> for all players to see.<br>
-    <b style="color:#ffd54f">Each name must be unique</b> — pick something cool!
-  </p>
-  <input id="firstNameInput" type="text" maxlength="14" placeholder="Your name (max 14 chars)"
-         style="width:100%; padding:10px; font-size:15px; border-radius:8px; border:2px solid #ffcc00; background:rgba(255,255,255,0.08); color:white; box-sizing:border-box; margin:8px 0">
-  <div id="nameStatus" style="min-height:20px; font-size:12px; opacity:0.8; margin-bottom:8px"></div>
-  <button class="start" onclick="confirmFirstName()" style="width:100%">✅ Confirm Name</button>
-</div>
+<!-- Name popup removed — the hub handles login/name. Gacha Flyer just reads flappyName. -->
 
 <!-- First-time intro popup -->
 <div id="intro" class="shopPopup">
@@ -1320,53 +1309,10 @@ function setName(name) {
   return true;
 }
 
-function requireName() {
-  if (localStorage.getItem("flappyNameSet")) return;
-  // Wait briefly for Firebase to load existing names before showing the modal
-  const show = () => {
-    document.getElementById("nameRequired").style.display = "block";
-    showBackdrop();
-    setTimeout(() => {
-      const input = document.getElementById("firstNameInput");
-      if (input) { input.focus(); input.value = ""; }
-    }, 100);
-  };
-  if (globalScoresLoaded || !firebaseReady) {
-    show();
-  } else {
-    // Poll briefly for Firebase to load (max ~2s)
-    let tries = 0;
-    const poll = setInterval(() => {
-      tries++;
-      if (globalScoresLoaded || tries > 20) { clearInterval(poll); show(); }
-    }, 100);
-  }
-}
-
-function confirmFirstName() {
-  const input = document.getElementById("firstNameInput");
-  const status = document.getElementById("nameStatus");
-  const val = input.value.trim();
-  if (!val) {
-    status.innerHTML = '<span style="color:#ff7043">❌ Please enter a name</span>';
-    return;
-  }
-  if (isNameTaken(val)) {
-    status.innerHTML = `<span style="color:#ff7043">❌ "${val}" is taken — try another!</span>`;
-    return;
-  }
-  // Save name
-  playerName = val.slice(0, 14);
-  localStorage.setItem("flappyName", playerName);
-  localStorage.setItem("flappyNameSet", "1");
-  document.getElementById("nameRequired").style.display = "none";
-  hideBackdrop();
-  syncScoreToFirebase();
-  SFX.buy();
-  showToast(`👋 Welcome, ${playerName}!`, "rgba(40,180,40,0.95)");
-  // Continue to intro
-  showFirstTimeIntro();
-}
+/* Name is now sourced from the hub login — these helpers are kept as no-ops so existing
+   callsites (intro flow, leaderboard refs) don't break. */
+function requireName() { /* hub handles this */ }
+function confirmFirstName() { /* deprecated */ }
 function closeSettings() {
   document.getElementById("settings").style.display = "none";
   hideBackdrop();
@@ -1627,7 +1573,6 @@ function showBackdrop() { document.getElementById("backdrop").classList.add("sho
 function hideBackdrop() { document.getElementById("backdrop").classList.remove("show"); }
 function closeAllPopups() {
   // Don't allow accidental closing of mandatory modals
-  if (document.getElementById("nameRequired").style.display === "block") return;
   if (document.getElementById("intro").style.display === "block") return;
   shop.style.display = "none";
   document.getElementById("wish").style.display = "none";
@@ -2276,8 +2221,7 @@ function isShopOpen() {
          document.getElementById("records").style.display === "block" ||
          document.getElementById("wish").style.display === "block" ||
          document.getElementById("intro").style.display === "block" ||
-         document.getElementById("settings").style.display === "block" ||
-         document.getElementById("nameRequired").style.display === "block";
+         document.getElementById("settings").style.display === "block";
 }
 canvas.addEventListener("mousedown", () => { if (!isShopOpen()) flap(); });
 canvas.addEventListener("touchstart", e => { e.preventDefault(); if (!isShopOpen()) flap(); });
@@ -3082,13 +3026,8 @@ applyStage();
 buildStageSelector();
 buildShop();
 updateWishButtonPulse();
-// Name comes first; the intro modal opens automatically after they pick one.
-// If they already have a name set, just show the intro (if first wish unused).
-if (localStorage.getItem("flappyNameSet")) {
-  showFirstTimeIntro();
-} else {
-  requireName();
-}
+// Name comes from the hub login now — just show the first-time intro if applicable.
+showFirstTimeIntro();
 syncScoreToFirebase(); // push my existing best scores on load
 loop();
 </script>
