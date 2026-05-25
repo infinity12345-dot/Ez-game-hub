@@ -1,0 +1,2495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brick Breaker</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🧱</text></svg>'>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #1e1e24;
+    color: #f1f1f1;
+    font-family: 'Trebuchet MS', Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    user-select: none;
+  }
+  h1 {
+    font-size: 32px;
+    margin: 10px 0 16px;
+    letter-spacing: 2px;
+    color: #ff9800;
+  }
+  .hud {
+    display: flex;
+    gap: 18px;
+    font-size: 15px;
+    margin-bottom: 14px;
+    background: rgba(255,255,255,0.05);
+    padding: 10px 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .hud span b { color: #ffcc80; font-weight: bold; }
+  .hud .livesBox b {
+    color: #ef5350;
+    font-size: 22px;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(239,83,80,0.5);
+  }
+  .stage { position: relative; }
+  canvas {
+    background: #14141a;
+    border: 2px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    display: block;
+    cursor: none;
+  }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(20,20,26,0.92);
+    border-radius: 10px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+    padding: 20px;
+  }
+  .overlay.show { display: flex; }
+  .overlay h2 { margin: 0; font-size: 26px; color: #ff9800; }
+  .overlay p { margin: 0; opacity: 0.85; font-size: 14px; line-height: 1.6; }
+  .overlay .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .btn {
+    background: #ff9800;
+    color: #14141a;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.12s, background 0.15s;
+  }
+  .btn:hover { background: #ffb74d; transform: scale(1.04); }
+  .btn.secondary {
+    background: rgba(255,255,255,0.08);
+    color: #f1f1f1;
+    border: 1px solid rgba(255,255,255,0.18);
+  }
+  .btn.secondary:hover { background: rgba(255,255,255,0.18); }
+
+  /* Corner buttons */
+  #coinCorner {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 100;
+    text-align: center;
+  }
+  #coinCorner .coinPill,
+  #coinCorner .diamondPill {
+    color: #333;
+    font-weight: bold;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    display: inline-block;
+  }
+  #coinCorner .coinPill { background: linear-gradient(90deg, #ffcc00, #ffaa00); }
+  #coinCorner .diamondPill {
+    background: linear-gradient(90deg, #4dd0e1, #1e88e5);
+    color: white;
+    margin-top: 6px;
+  }
+  #coinCorner .cornerButtons {
+    margin-top: 10px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+  }
+  .cornerButtons.left {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    display: flex;
+    gap: 14px;
+    z-index: 100;
+  }
+  .cornerBtn { text-align: center; }
+  .cornerIcon {
+    background: #2c3e50;
+    color: white;
+    border: 2px solid #ffcc00;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 0 12px rgba(255,204,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cornerIcon:hover { transform: scale(1.08); box-shadow: 0 0 20px rgba(255,204,0,0.7); }
+  .cornerIcon.records { border-color: #4dd0e1; box-shadow: 0 0 12px rgba(77,208,225,0.4); }
+  .cornerIcon.records:hover { box-shadow: 0 0 20px rgba(77,208,225,0.7); }
+  .cornerIcon.wish {
+    border-color: #ce93d8;
+    box-shadow: 0 0 12px rgba(206,147,216,0.5);
+    animation: wishPulse 2.4s ease-in-out infinite;
+  }
+  .cornerIcon.wish:hover { box-shadow: 0 0 22px rgba(206,147,216,0.9); animation: none; }
+  @keyframes wishPulse {
+    0%, 100% { box-shadow: 0 0 12px rgba(206,147,216,0.5); }
+    50%      { box-shadow: 0 0 22px rgba(206,147,216,0.9); }
+  }
+  .iconLabel {
+    font-size: 12px;
+    color: white;
+    margin-top: 4px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+
+  #skillCorner {
+    position: fixed;
+    top: 92px;
+    left: 14px;
+    background: rgba(0,0,0,0.78);
+    padding: 8px 12px;
+    border-radius: 10px;
+    max-width: 200px;
+    text-align: left;
+    border-left: 3px solid #ffcc00;
+    z-index: 100;
+    display: none;
+  }
+  #skillCorner.show { display: block; }
+  .skillCornerName { font-weight: bold; font-size: 14px; color: #ffcc00; }
+  .skillCornerDesc { font-size: 11.5px; color: #cfd8dc; margin-top: 3px; line-height: 1.3; }
+  .skillCornerStatus {
+    font-size: 12px;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    min-height: 14px;
+  }
+  .skillCornerStatus.active   { color: #ffd54f; font-weight: bold; text-shadow: 0 0 8px rgba(255,213,79,0.6); }
+  .skillCornerStatus.cooldown { color: #90caf9; }
+  .skillCornerStatus.ready    { color: #a5d6a7; }
+  .skillCornerStatus.used     { color: #999; text-decoration: line-through; }
+
+  /* Shop / wish / records popups — identical to other games */
+  .shopBackdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center;
+    z-index: 500; padding: 20px;
+  }
+  .shopBackdrop.show { display: flex; }
+  .shopPopup {
+    background: rgba(0,0,0,0.95);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 20px 26px;
+    width: 100%; max-width: 460px;
+    max-height: 90vh; overflow-y: auto;
+    color: white; position: relative;
+  }
+  .closeX {
+    position: absolute; top: 10px; right: 12px;
+    background: rgba(255,255,255,0.08); border: none; color: #f1f1f1;
+    width: 30px; height: 30px; border-radius: 50%;
+    cursor: pointer; font-size: 14px;
+  }
+  .closeX:hover { background: rgba(255,255,255,0.18); }
+  .shopHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 8px; flex-wrap: wrap; }
+  .shopHeader h3 { margin: 0; font-size: 22px; }
+  .shopBalance {
+    background: linear-gradient(90deg, #ffcc00, #ffaa00);
+    color: #333; padding: 5px 12px; border-radius: 16px;
+    font-weight: bold; font-size: 14px;
+  }
+  .shopBalance.gem { background: linear-gradient(90deg, #4dd0e1, #00bcd4); color: #fff; margin-left: 6px; }
+  .shopTabs { display: flex; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; }
+  .shopTabs .tab {
+    padding: 8px 18px; background: transparent; border: none; color: #aaa;
+    font-size: 14px; font-weight: bold; cursor: pointer;
+    border-bottom: 3px solid transparent; margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .shopTabs .tab:hover { color: white; }
+  .shopTabs .tab.active { color: #ffcc00; border-bottom-color: #ffcc00; }
+  .shopGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .gCard {
+    background: #1f1f1f; border: 2px solid #333; border-radius: 10px;
+    padding: 10px 6px 8px; cursor: pointer;
+    transition: transform 0.12s, background 0.12s, border-color 0.12s;
+    text-align: center; color: white;
+  }
+  .gCard:hover { background: #2a2a2a; transform: translateY(-2px); }
+  .gCard.selected { border-color: #ffcc00; background: #2a2618; box-shadow: 0 0 10px rgba(255,204,0,0.35); }
+  .gCard.locked { opacity: 0.7; border-style: dashed; }
+  .gCard.gemOnly {
+    border-color: #4dd0e1;
+    background: linear-gradient(135deg, #1a2a30 0%, #1a1a1a 70%);
+    box-shadow: 0 0 12px rgba(77, 208, 225, 0.35);
+  }
+  .gCard.gemOnly.selected { box-shadow: 0 0 18px rgba(77, 208, 225, 0.75); }
+  .gCard .icon { font-size: 28px; line-height: 1; margin-bottom: 4px; }
+  .gCard .skinSwatch { height: 22px; margin: 4px 4px 6px; border-radius: 4px; }
+  .gCard .ballSwatch {
+    width: 22px; height: 22px; border-radius: 50%;
+    margin: 4px auto 6px;
+  }
+  #skinGrid.shopGrid {
+    display: block;
+    grid-template-columns: none;
+  }
+  .skinSection {
+    font-size: 12px; color: #ffcc00; letter-spacing: 1px; text-transform: uppercase;
+    margin: 6px 0 6px; font-weight: bold;
+  }
+  .skinSubGrid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 6px;
+  }
+  .gCard .name { font-size: 13px; font-weight: bold; line-height: 1.1; }
+  .gCard .desc { font-size: 11px; color: #cfd8dc; margin: 5px 2px 8px; min-height: 32px; line-height: 1.3; }
+  .gCard .status { font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 10px; display: inline-block; }
+  .status-equipped     { background: #ffcc00; color: #333; }
+  .status-equip        { background: rgba(255,255,255,0.12); color: white; }
+  .status-locked       { background: #2a2a2a; color: #ffcc00; border: 1px solid #444; }
+  .status-locked-gem   { background: #1a2a30; color: #4dd0e1; border: 1px solid #2a4a55; }
+
+  /* Wish modal extras */
+  .wishCost { text-align: center; font-size: 14px; opacity: 0.8; margin-bottom: 12px; }
+  .wishRatesBlock {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px; padding: 10px 14px; margin-bottom: 12px;
+    font-size: 13px; line-height: 1.7;
+  }
+  .wishBtn {
+    background: linear-gradient(90deg, #ce93d8, #7b1fa2);
+    color: white; border: none; padding: 12px 28px;
+    border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.15s;
+    box-shadow: 0 0 14px rgba(206,147,216,0.4);
+  }
+  .wishBtn:hover { transform: scale(1.05); box-shadow: 0 0 22px rgba(206,147,216,0.8); }
+  .wishBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .wishBtn.purple { background: linear-gradient(90deg, #ce93d8, #7b1fa2); color: white; }
+  .wishButtonRow { display: flex; gap: 8px; justify-content: center; flex-wrap: nowrap; margin: 4px 0 6px; }
+  .wishButtonRow .wishBtn { flex: 1; padding: 12px 8px; font-size: 14px; white-space: nowrap; }
+  .tradeBox {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px; padding: 10px 14px; text-align: center;
+  }
+  .tradeInfo { font-size: 13px; margin-bottom: 8px; }
+  .tradeInfo b { color: #ffd54f; }
+  .tradeBox input[type="range"] { width: 100%; accent-color: #ffaa00; }
+  .tradeBtn {
+    background: linear-gradient(90deg, #ffaa00, #1e88e5);
+    color: white; border: none; padding: 6px 14px;
+    border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 6px;
+  }
+  #wishStars { font-size: 32px; text-align: center; margin: 10px 0; letter-spacing: 4px; }
+  #wishStars.star3 { color: #90caf9; }
+  #wishStars.star4 { color: #ce93d8; text-shadow: 0 0 16px rgba(206,147,216,0.6); }
+  #wishStars.star5 {
+    background: linear-gradient(90deg, #ffd54f, #ff7043, #ffd54f);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    background-size: 200% 100%; animation: shine 2s linear infinite;
+    text-shadow: 0 0 24px rgba(255,213,79,0.9);
+  }
+  @keyframes shine { 0% { background-position: 0% 0%; } 100% { background-position: 200% 0%; } }
+  #wishItem { font-size: 56px; text-align: center; margin: 6px 0; }
+  #wishMessage { text-align: center; font-size: 14px; line-height: 1.5; margin: 8px 0; }
+  .reveal-anim { animation: wishPop 0.5s ease; }
+  @keyframes wishPop { 0% { transform: scale(0.7); opacity: 0; } 60% { transform: scale(1.06); opacity: 1; } 100% { transform: scale(1); } }
+  .wishGrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 10px 0; }
+  .wishGridItem { background: #1f1f1f; border: 2px solid #333; border-radius: 8px; padding: 6px 2px; text-align: center; }
+  .wishGridItem.s3 { border-color: #5f6c70; }
+  .wishGridItem.s4 { border-color: #ce93d8; box-shadow: 0 0 8px rgba(206,147,216,0.4); }
+  .wishGridItem.s5 { border-color: #ffd54f; box-shadow: 0 0 12px rgba(255,213,79,0.6); }
+  .wishGridIcon { font-size: 22px; line-height: 1; }
+  .wishGridName { font-size: 10px; opacity: 0.85; margin-top: 2px; }
+  .wishGridStars { font-size: 10px; margin-top: 2px; letter-spacing: 1px; }
+  .wishGridStars.star3 { color: #90caf9; }
+  .wishGridStars.star4 { color: #ce93d8; }
+  .wishGridStars.star5 { color: #ffd54f; }
+
+  .screenFlash {
+    position: fixed; inset: 0;
+    background: radial-gradient(circle, rgba(255,213,79,0.85) 0%, rgba(255,213,79,0) 70%);
+    z-index: 9999; pointer-events: none;
+    animation: flashFade 0.7s ease-out forwards;
+  }
+  @keyframes flashFade {
+    0% { opacity: 0; transform: scale(0.4); }
+    30% { opacity: 1; transform: scale(1.1); }
+    100% { opacity: 0; transform: scale(1.4); }
+  }
+  .fiveStarBurst { position: fixed; top: 50%; left: 50%; pointer-events: none; z-index: 10000; }
+  .fiveStarBurst span {
+    position: absolute; font-size: 24px; color: #ffd54f;
+    text-shadow: 0 0 12px rgba(255,213,79,0.9);
+    animation: burstFly 1.4s ease-out forwards;
+  }
+  @keyframes burstFly {
+    0%   { transform: translate(-50%, -50%) scale(0.4) rotate(0deg); opacity: 1; }
+    80%  { opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(1.2) rotate(360deg); opacity: 0; }
+  }
+
+  /* Records */
+  .recordRow {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px; padding: 8px 12px; margin-bottom: 6px;
+  }
+  .recordRow.me { border-color: #ffcc00; background: rgba(255,204,0,0.08); }
+  .recordRow .rank { width: 28px; text-align: center; font-weight: bold; font-size: 16px; color: #ffcc00; }
+  .recordRow .name { flex: 1; font-size: 14px; font-weight: bold; }
+  .recordRow .score { font-size: 14px; color: #ffcc80; font-weight: bold; }
+  .recordRow .date { font-size: 11px; opacity: 0.5; margin-left: 8px; }
+  .emptyRecords { text-align: center; padding: 30px 10px; opacity: 0.5; font-size: 14px; }
+  .recordsSection { margin: 12px 0 4px; color: #ffcc00; font-size: 14px; font-weight: bold; }
+  .recRow {
+    display: flex; justify-content: space-between;
+    padding: 4px 2px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-size: 14px;
+  }
+  .recRow b { color: #ffcc80; }
+
+  .hint { margin-top: 16px; font-size: 13px; opacity: 0.55; text-align: center; }
+  .backBtn {
+    position: fixed; bottom: 14px; left: 14px;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25);
+    color: white; padding: 8px 14px; border-radius: 20px;
+    font-size: 14px; text-decoration: none; z-index: 1000;
+    transition: background 0.15s;
+  }
+  .backBtn:hover { background: rgba(255,255,255,0.18); }
+
+  .toast {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(20,20,26,0.95); border: 1px solid rgba(255,255,255,0.2);
+    color: #f1f1f1; padding: 10px 18px; border-radius: 20px;
+    font-size: 14px; z-index: 2000; opacity: 0; pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 8px); }
+
+  /* Mobile skill buttons (visible when the matching active skill is equipped) */
+  .skillButtons {
+    position: fixed;
+    bottom: 80px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 50;
+  }
+  .mobileBtn {
+    width: 58px; height: 58px;
+    border-radius: 50%;
+    background: rgba(20,20,26,0.85);
+    color: white;
+    border: 2px solid #ffcc00;
+    font-size: 26px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    box-shadow: 0 0 14px rgba(255,204,0,0.5);
+    transition: transform 0.1s, box-shadow 0.15s;
+    position: relative;
+  }
+  .mobileBtn.show { display: flex; }
+  .mobileBtn:active { transform: scale(0.92); background: rgba(60,60,66,0.95); }
+  .mobileBtn.locked { opacity: 0.45; cursor: not-allowed; }
+  .mobileBtn .charge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    background: #ef5350;
+    color: #fff;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: bold;
+  }
+  #skillBtnM { border-color: #ce93d8; box-shadow: 0 0 14px rgba(206,147,216,0.6); }
+  #skillBtnF { border-color: #ff5252; box-shadow: 0 0 14px rgba(255,82,82,0.6); }
+
+  /* Boss energy bar */
+  .bossEnergyBar {
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
+    height: 10px;
+    overflow: hidden;
+    margin-bottom: 4px;
+    border: 1px solid rgba(255,82,82,0.3);
+  }
+  #bossEnergyFill {
+    background: linear-gradient(90deg, #ff5252 0%, #ffcc00 100%);
+    height: 100%;
+    width: 0%;
+    transition: width 0.2s ease;
+  }
+  .bossEnergyText { font-size: 13px; opacity: 0.9; }
+  .bossEnergyText b { color: #ffcc00; font-size: 16px; }
+  #bossEnergyHint {
+    color: #ff5252;
+    font-weight: bold;
+    margin-left: 4px;
+    animation: pulseHint 0.8s ease-in-out infinite;
+  }
+  @keyframes pulseHint { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+  /* Auto-pause label over canvas (visible while a popup is open) */
+  .pauseOverlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    background: rgba(20,20,26,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 5;
+    display: none;
+  }
+  .pauseOverlay.show { display: flex; }
+  .pauseOverlay .label {
+    font-size: 38px;
+    font-weight: bold;
+    letter-spacing: 4px;
+    color: white;
+    text-shadow: 0 0 12px rgba(0,0,0,0.6);
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 500px) {
+    body { padding: 10px; }
+    h1 { font-size: 22px; margin: 4px 0 8px; }
+    .hud { font-size: 13px; padding: 8px 12px; gap: 10px; }
+    canvas { max-width: calc(100vw - 24px); height: auto; }
+    .stage { width: 100%; max-width: 400px; }
+    .cornerIcon { width: 42px; height: 42px; font-size: 18px; }
+    .iconLabel { font-size: 11px; }
+    .shopPopup { padding: 16px 18px; }
+    #coinCorner .coinPill, #coinCorner .diamondPill { font-size: 14px; padding: 6px 10px; }
+    #skillCorner { top: 78px; max-width: 150px; padding: 6px 8px; }
+    .skillCornerName { font-size: 12px; }
+    .skillCornerDesc { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<a class="backBtn" href="../index.html" data-i18n="back">← Back to Hub</a>
+<div id="toast" class="toast"></div>
+
+<!-- Records (top-left) -->
+<div class="cornerButtons left">
+  <div class="cornerBtn">
+    <button class="cornerIcon records" onclick="openRecords()" title="Records">📊</button>
+    <div class="iconLabel" data-i18n="records">Records</div>
+  </div>
+</div>
+
+<!-- Coin corner (top-right) -->
+<div id="coinCorner">
+  <div class="coinPill">💰 <span id="coinCount">0</span></div>
+  <div class="diamondPill">💎 <span id="diamondCount">0</span></div>
+  <div class="cornerButtons">
+    <div class="cornerBtn">
+      <button class="cornerIcon" onclick="openShop()" title="Shop">🛒</button>
+      <div class="iconLabel" data-i18n="shop">Shop</div>
+    </div>
+    <div class="cornerBtn">
+      <button class="cornerIcon wish" onclick="openWish()" title="Wish">✨</button>
+      <div class="iconLabel" data-i18n="wish">Wish</div>
+    </div>
+  </div>
+</div>
+
+<div id="skillCorner">
+  <div class="skillCornerName" id="skillCornerName"></div>
+  <div class="skillCornerDesc" id="skillCornerDesc"></div>
+  <div class="skillCornerStatus" id="skillCornerStatus"></div>
+</div>
+
+<h1 data-i18n="pageTitle">BRICK BREAKER</h1>
+
+<div class="hud">
+  <span><span data-i18n="score">Score</span> <b id="score">0</b></span>
+  <span class="livesBox"><b id="lives">❤</b></span>
+  <span><span data-i18n="best">Best</span> <b id="best">0</b></span>
+  <span><span data-i18n="level">Level</span> <b id="level">1</b></span>
+  <span>⚡ <b id="speed">1.00x</b></span>
+  <span>⏱ <b id="playTime">00:00</b></span>
+</div>
+
+<div class="stage">
+  <canvas id="game" width="400" height="500"></canvas>
+  <div id="overlay" class="overlay"></div>
+  <div id="pauseOverlay" class="pauseOverlay"><div class="label">⏸ PAUSED</div></div>
+</div>
+
+<!-- Mobile / always-visible skill buttons -->
+<div class="skillButtons">
+  <button id="skillBtnM" class="mobileBtn" type="button">🟡</button>
+  <button id="skillBtnF" class="mobileBtn" type="button">🔫</button>
+</div>
+
+<div id="bossEnergy" style="display:none; margin-top:10px; text-align:center; width:100%; max-width:400px">
+  <div class="bossEnergyBar"><div id="bossEnergyFill"></div></div>
+  <div class="bossEnergyText">
+    ⚡ <span id="bossEnergyVal">0</span>/<span id="bossEnergyMax">4</span>
+    · 🔫 <b id="bossLaserCount">0</b>
+    <span id="bossEnergyHint" data-i18n="pressFHint" style="display:none">— PRESS F !</span>
+  </div>
+</div>
+
+<div class="hint" data-i18n="hint">Move with mouse or ← → · Space to launch / pause</div>
+
+<!-- RECORDS POPUP -->
+<div id="recordsBackdrop" class="shopBackdrop">
+  <div class="shopPopup" onclick="event.stopPropagation()">
+    <button class="closeX" onclick="closeRecords()">✕</button>
+    <div class="shopHeader"><h3 data-i18n="recordsTitle">📊 Records</h3></div>
+    <div id="recordsList"></div>
+  </div>
+</div>
+
+<!-- WISH POPUP -->
+<div id="wishBackdrop" class="shopBackdrop">
+  <div class="shopPopup" onclick="event.stopPropagation()">
+    <button class="closeX" onclick="closeWish()">✕</button>
+    <div class="shopHeader">
+      <h3 data-i18n="makeWish">✨ Make a Wish</h3>
+      <span class="shopBalance gem">💎 <span id="wishGemsHeader">0</span></span>
+    </div>
+    <div class="wishCost" data-i18n="wishCost">Cost: 1 💎 per wish</div>
+
+    <div id="firstWishStage" style="display:none; text-align:center;">
+      <p style="font-size:15px; margin: 10px 0" data-i18n="welcomeGift">🎁 Welcome gift! Claim your <b style="color:#ce93d8">guaranteed ★★★★</b> wish:</p>
+      <button class="wishBtn" onclick="claimFirstWish()" data-i18n="claimFreeWish" style="background:linear-gradient(90deg,#ce93d8,#7b1fa2);color:white">🎁 Claim Free 4★ Wish</button>
+    </div>
+
+    <div id="wishStage">
+      <div class="wishRatesBlock">
+        <div data-i18n="rate5">★★★★★ <span style="color:#ffd54f">1%</span> — guaranteed at 70</div>
+        <div data-i18n="rate4">★★★★ <span style="color:#ce93d8">7%</span> — guaranteed at 20</div>
+        <div data-i18n="rate3">★★★ <span style="color:#90caf9">92%</span> — coins</div>
+        <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); font-size:12px" data-i18n="pityLine">
+          Pity: ★★★★★ <b id="pity5Display" style="color:#ffd54f">0</b>/70 · ★★★★ <b id="pity4Display" style="color:#ce93d8">0</b>/20<br><span style="opacity:0.7; font-size:11px">10× pull guarantees at least one ★★★★</span>
+        </div>
+      </div>
+      <div class="wishButtonRow">
+        <button id="wishGoBtn" class="wishBtn" onclick="makeWish()" data-i18n="wish1Btn">✨ Wish (1 💎)</button>
+        <button id="wishTenBtn" class="wishBtn purple" onclick="makeTenWish()" data-i18n="wish10Btn">✨✨ Wish 10× (10 💎)</button>
+      </div>
+      <hr style="margin:14px 0 10px; border:none; border-top:1px solid rgba(255,255,255,0.12)">
+      <div style="font-size:12px; opacity:0.7; margin-bottom:6px" data-i18n="outOfDiamonds">Out of diamonds?</div>
+      <div class="tradeBox">
+        <div class="tradeInfo" data-i18n="tradeInfo">Trade <b id="tradeQty">1</b> 💎 — cost <b id="tradeCost">400</b> 💰</div>
+        <input type="range" id="tradeSlider" min="1" max="1" value="1" oninput="updateTradeUI()">
+        <button class="tradeBtn" onclick="executeTrade()" data-i18n="tradeBtn">💱 Trade</button>
+      </div>
+    </div>
+
+    <div id="wishResult" style="display:none">
+      <div id="wishStars"></div>
+      <div id="wishItem"></div>
+      <div id="wishMessage"></div>
+      <button class="wishBtn" onclick="resetWishStage()" style="margin-top:10px" data-i18n="wishAgain">Wish again</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHOP POPUP -->
+<div id="shopBackdrop" class="shopBackdrop">
+  <div class="shopPopup" onclick="event.stopPropagation()">
+    <button class="closeX" onclick="closeShop()">✕</button>
+    <div class="shopHeader">
+      <h3 data-i18n="shopTitle">🛒 Shop</h3>
+      <div>
+        <span class="shopBalance">💰 <span id="shopCoins">0</span></span>
+        <span class="shopBalance gem">💎 <span id="shopGems">0</span></span>
+      </div>
+    </div>
+    <div class="shopTabs">
+      <button class="tab active" data-tab="skins"    onclick="switchShopTab('skins')"    data-i18n="tabSkins">🎨 Skins</button>
+      <button class="tab"        data-tab="upgrades" onclick="switchShopTab('upgrades')" data-i18n="tabSkills">⚡ Skills</button>
+    </div>
+    <div class="shopGrid" id="skinGrid"></div>
+    <div class="shopGrid" id="upgradeGrid" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+/* ============ Audio (Web Audio API — reads flappyVolume 0-100) ============ */
+const audioCtx = (window.AudioContext || window.webkitAudioContext)
+  ? new (window.AudioContext || window.webkitAudioContext)() : null;
+function volume01() { return Math.max(0, Math.min(100, parseInt(localStorage.getItem("flappyVolume") || "50", 10))) / 100; }
+function playTone(freq, dur, type = "square", baseVol = 0.1) {
+  if (!audioCtx) return;
+  const v = baseVol * volume01();
+  if (v <= 0) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(v, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + dur);
+  } catch (e) {}
+}
+const SFX = {
+  paddle:       () => playTone(220, 0.05, "square",   0.08),
+  brick:        () => playTone(440 + Math.random() * 200, 0.06, "square", 0.10),
+  bossHit:      () => playTone(120, 0.10, "sawtooth", 0.18),
+  laser:        () => { playTone(800, 0.05, "sine", 0.18); setTimeout(() => playTone(1400, 0.08, "sine", 0.14), 50); },
+  chargeReady:  () => { playTone(660, 0.08, "sine", 0.14); setTimeout(() => playTone(990, 0.10, "sine", 0.14), 70); },
+  bossDefeated: () => { [220, 330, 440, 660, 880].forEach((f, i) => setTimeout(() => playTone(f, 0.12, "square", 0.18), i * 70)); },
+  lifeLost:     () => playTone(150, 0.25, "sawtooth", 0.20),
+  levelUp:      () => { [440, 660, 880].forEach((f, i) => setTimeout(() => playTone(f, 0.10, "square", 0.15), i * 80)); },
+  winFinale:    () => {
+    const notes = [523, 659, 784, 1047, 784, 1047, 1318, 1047, 1318, 1568];
+    notes.forEach((f, i) => setTimeout(() => playTone(f, 0.16, "sine", 0.18), i * 110));
+  },
+  wish:    () => { playTone(880, 0.06, "sine", 0.12); setTimeout(() => playTone(1320, 0.08, "sine", 0.12), 60); },
+  wish10:  () => { [660, 880, 1100, 1320].forEach((f, i) => setTimeout(() => playTone(f, 0.10, "sine", 0.14), i * 70)); },
+  rare4:   () => { [880, 1200, 1600].forEach((f, i) => setTimeout(() => playTone(f, 0.14, "triangle", 0.16), i * 90)); },
+  rare5:   () => { [523, 784, 1047, 1318, 1568].forEach((f, i) => setTimeout(() => playTone(f, 0.18, "sine", 0.20), i * 110)); },
+  coin:    () => { playTone(880, 0.04, "sine", 0.10); setTimeout(() => playTone(1100, 0.06, "sine", 0.10), 30); }
+};
+
+/* ============ Screen shake ============ */
+let shakeUntil = 0, shakeIntensity = 0;
+function shake(intensity = 6, duration = 220) {
+  shakeUntil = performance.now() + duration;
+  shakeIntensity = intensity;
+}
+function applyShake() {
+  const stage = document.querySelector(".stage");
+  if (!stage) return;
+  const now = performance.now();
+  if (now > shakeUntil) { stage.style.transform = ""; return; }
+  const remaining = (shakeUntil - now) / 220;
+  const i = shakeIntensity * remaining;
+  const x = (Math.random() - 0.5) * i;
+  const y = (Math.random() - 0.5) * i;
+  stage.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`;
+}
+
+/* ============ Shared wallet ============ */
+const WALLET = {
+  get coins()    { return parseInt(localStorage.getItem("flappyCoins")    || "0", 10); },
+  set coins(v)   { localStorage.setItem("flappyCoins",    Math.max(0, v|0)); refreshHUD(); },
+  get diamonds() { return parseInt(localStorage.getItem("flappyDiamonds") || "0", 10); },
+  set diamonds(v){ localStorage.setItem("flappyDiamonds", Math.max(0, v|0)); refreshHUD(); }
+};
+
+/* ============ i18n ============ */
+const I18N = {
+  en: {
+    pageTitle: "BRICK BREAKER",
+    score: "Score", best: "Best", level: "Level",
+    hint: "Move with mouse or ← → · Space to launch / pause · 💎 only from bosses",
+    back: "← Back to Hub",
+    shop: "Shop", records: "Records", wish: "Wish",
+    menuReady: "Ready?",
+    menuReadyText: "Move the paddle with <b>← → or mouse</b>.<br>Press <b>Space</b> to launch the ball.",
+    btnStart: "▶ Start",
+    menuPaused: "Paused", menuPausedText: "Take a breath.", btnResume: "▶ Resume",
+    menuGameOver: "Game Over", btnPlayAgain: "▶ Play Again",
+    finalScoreLine: "Final score: <b>{score}</b> · Best: <b>{best}</b><br>Earned: 💰 {coins}{diamonds}",
+    shopTitle: "🛒 Shop",
+    tabSkins: "🎨 Skins", tabSkills: "⚡ Skills", tabWish: "✨ Wish",
+    statusEquipped: "✓ EQUIPPED", statusEquip: "Tap to Equip", statusWishOnly: "✨ Wish only",
+    recordsTitle: "📊 Records",
+    recordsEmpty: "No records yet.<br>Play a game to set the first!",
+    topRuns: "🏆 Top 5",
+    currentBalance: "💼 Current Balance",
+    coinsNow: "💰 Coins now",
+    diamondsNow: "💎 Diamonds now",
+    lifetimeTotals: "📈 Lifetime Totals",
+    gamesPlayed: "🎮 Games played",
+    totalCoinsEarned: "💰 Total coins earned",
+    totalDiamondsEarned: "💎 Total diamonds earned",
+    highestLevel: "📈 Highest level",
+    makeWish: "✨ Make a Wish",
+    wishCost: "Cost: 1 💎 per wish",
+    welcomeGift: "🎁 Welcome gift! Claim your <b style=\"color:#ce93d8\">guaranteed ★★★★</b> wish:",
+    claimFreeWish: "🎁 Claim Free 4★ Wish",
+    rate5: "★★★★★ <span style=\"color:#ffd54f\">1%</span> — guaranteed at 70",
+    rate4: "★★★★ <span style=\"color:#ce93d8\">7%</span> — guaranteed at 20",
+    rate3: "★★★ <span style=\"color:#90caf9\">92%</span> — coins",
+    pityLine: "Pity: ★★★★★ <b id=\"pity5Display\" style=\"color:#ffd54f\">0</b>/70 · ★★★★ <b id=\"pity4Display\" style=\"color:#ce93d8\">0</b>/20<br><span style=\"opacity:0.7; font-size:11px\">10× pull guarantees at least one ★★★★</span>",
+    wish1Btn: "✨ Wish (1 💎)",
+    wish10Btn: "✨✨ Wish 10× (10 💎)",
+    outOfDiamonds: "Out of diamonds?",
+    tradeInfo: "Trade <b id=\"tradeQty\">1</b> 💎 — cost <b id=\"tradeCost\">400</b> 💰",
+    tradeBtn: "💱 Trade",
+    wishAgain: "Wish again",
+    tenPullSum: "+{n} 💰 from this pull",
+    coinReward: "+{n} coins",
+    alreadyOwned: "Already owned — +{n} 💰",
+    equipFromShop: "Equip from 🛒 Shop",
+
+    notEnoughCoin: "Not enough 💰",
+    notEnoughGem: "💎 Not enough diamonds!",
+    needTenGems: "💎 Need 10 diamonds!",
+    diamondGet: "💎 +1 Diamond!",
+    lifeLost: "💔 {n} left",
+    levelUp: "🎉 Level {n}!",
+    equipped: "Equipped {name}",
+    unequipped: "Unequipped {name}",
+    unlocked: "{name} unlocked & equipped!",
+    unlockedSkin: "Unlocked {name}!",
+    wishOnlyToast: "✨ Available via Wish only",
+    multiballActive: "🟡 Multiball!",
+    multiballUsed: "🟡 already used this run",
+    safetyNetUsed: "🪁 Safety net!",
+    needCoins: "💰 Need {cost} (have {have})",
+    diamondsAdded: "💎 +{n} diamond{s}!",
+    confirmTrade: "Trade {cost} 💰 for {qty} 💎?",
+
+    skillActive: "ACTIVE {n}s",
+    skillActiveLabel: "ACTIVE",
+    skillCooldown: "Cooldown {n}s",
+    skillReadyM: "Press M",
+    skillReadyF: "Press F",
+    skillUsedShort: "Used this run",
+    skillPassive: "Passive",
+
+    /* Skins */
+    skin_classic_name: "Classic",  skin_classic_desc: "Default paddle & ball.",
+    skin_ocean_name:   "Ocean",    skin_ocean_desc:   "★★★★ Cool blue tones.",
+    skin_gold_name:    "Royal Gold", skin_gold_desc:  "★★★★ Shiny luxury.",
+    skin_forest_name:  "Forest",   skin_forest_desc:  "★★★★ Earthy greens.",
+    skin_robot_name:   "Cyborg",   skin_robot_desc:   "★★★★★ Red laser glow",
+    skin_rainbow_name: "Rainbow",  skin_rainbow_desc: "★★★★★ Wish only · rare!",
+
+    /* Skills */
+    skill_wide_name:      "Wide Paddle",  skill_wide_desc:      "Bigger paddle from the start.",
+    skill_slow_name:      "Slow Ball",    skill_slow_desc:      "Slower starting speed.",
+    skill_extraLife_name: "Extra Life",   skill_extraLife_desc: "Start with 2 lives.",
+    skill_safety_name:    "Safety Net",   skill_safety_desc:    "Bounce ball off the bottom once per round.",
+    skill_multiball_name: "Multiball",    skill_multiball_desc: "★★★★★ Press M — triple ball for the rest of the game. +1 starting life.",
+    skill_laser_name:     "Laser",        skill_laser_desc:     "★★★★★ Press F — 5-beam laser barrage. 1× per run.",
+    /* Boss */
+    bossLevel:        "BOSS",
+    bossDefeated:     "🏆 Boss defeated! +{n} 💎",
+    bossLifeLost:     "💔 Boss hit you! {n} left",
+    chargeReady:      "⚡ Laser charged! Press F",
+    chargeFired:      "🔫 Laser dealt {n} HP!",
+    pressFHint:       "— PRESS F !",
+    achievementUnlocked: "🏆 ALL BOSSES DEFEATED! +10 💎 ACHIEVEMENT!",
+    timeLabel:        "Time",
+    gameCompleteTitle: "🎉 GAME COMPLETE!",
+    gameCompleteText:  "You've conquered all 9 levels and 3 bosses!<br>⏱ Time: <b>{time}</b><br>🏆 Final score: <b>{score}</b><br>💎 Run diamonds: <b>{diamonds}</b>",
+    btnNewGame:       "▶ New Game",
+
+    /* Sections */
+    sectionPaddle: "Paddle",
+    sectionBall:   "Ball",
+    /* Ball skins */
+    ball_classic_name: "Classic",  ball_classic_desc: "Default yellow ball.",
+    ball_ember_name:   "Ember",    ball_ember_desc:   "★★★★ Glowing orange.",
+    ball_crystal_name: "Crystal",  ball_crystal_desc: "★★★★ Cyan ice.",
+    ball_nova_name:    "Nova",     ball_nova_desc:    "★★★★ Purple energy.",
+
+    /* Laser toasts */
+    laserFired:     "🔫 LASER BARRAGE!",
+    laserUsedToast: "🔫 already used this run"
+  },
+  zh: {
+    pageTitle: "磚塊破壞者",
+    score: "分數", best: "最高", level: "關卡",
+    hint: "用滑鼠或 ← → 移動 · 空白鍵發射/暫停 · 💎 僅從魔王取得",
+    back: "← 返回首頁",
+    shop: "商店", records: "紀錄", wish: "願望",
+    menuReady: "準備好了嗎?",
+    menuReadyText: "使用 <b>← → 或滑鼠</b> 移動板子。<br>按 <b>空白鍵</b> 發射球。",
+    btnStart: "▶ 開始",
+    menuPaused: "已暫停", menuPausedText: "喘口氣吧。", btnResume: "▶ 繼續",
+    menuGameOver: "遊戲結束", btnPlayAgain: "▶ 再玩一次",
+    finalScoreLine: "最終分數:<b>{score}</b> · 最高:<b>{best}</b><br>獲得:💰 {coins}{diamonds}",
+    shopTitle: "🛒 商店",
+    tabSkins: "🎨 造型", tabSkills: "⚡ 技能", tabWish: "✨ 願望",
+    statusEquipped: "✓ 已裝備", statusEquip: "點擊裝備", statusWishOnly: "✨ 願望限定",
+    recordsTitle: "📊 紀錄",
+    recordsEmpty: "尚無紀錄。<br>玩一場創下第一筆吧!",
+    topRuns: "🏆 前 5 名",
+    currentBalance: "💼 目前餘額",
+    coinsNow: "💰 目前金幣",
+    diamondsNow: "💎 目前鑽石",
+    lifetimeTotals: "📈 累計數據",
+    gamesPlayed: "🎮 遊玩次數",
+    totalCoinsEarned: "💰 累計賺得金幣",
+    totalDiamondsEarned: "💎 累計賺得鑽石",
+    highestLevel: "📈 最高關卡",
+    makeWish: "✨ 許願",
+    wishCost: "每次願望費用:1 💎",
+    welcomeGift: "🎁 歡迎禮物!領取你的 <b style=\"color:#ce93d8\">保底 ★★★★</b> 願望:",
+    claimFreeWish: "🎁 領取免費 4★ 願望",
+    rate5: "★★★★★ <span style=\"color:#ffd54f\">1%</span> — 70 次保底",
+    rate4: "★★★★ <span style=\"color:#ce93d8\">7%</span> — 20 次保底",
+    rate3: "★★★ <span style=\"color:#90caf9\">92%</span> — 金幣",
+    pityLine: "保底:★★★★★ <b id=\"pity5Display\" style=\"color:#ffd54f\">0</b>/70 · ★★★★ <b id=\"pity4Display\" style=\"color:#ce93d8\">0</b>/20<br><span style=\"opacity:0.7; font-size:11px\">10 連抽保證至少一個 ★★★★</span>",
+    wish1Btn: "✨ 許願 (1 💎)",
+    wish10Btn: "✨✨ 10 連抽 (10 💎)",
+    outOfDiamonds: "鑽石不夠?",
+    tradeInfo: "兌換 <b id=\"tradeQty\">1</b> 💎 — 花費 <b id=\"tradeCost\">400</b> 💰",
+    tradeBtn: "💱 兌換",
+    wishAgain: "再次許願",
+    tenPullSum: "本次獲得 +{n} 💰",
+    coinReward: "+{n} 金幣",
+    alreadyOwned: "已擁有 — +{n} 💰",
+    equipFromShop: "從 🛒 商店裝備",
+
+    notEnoughCoin: "💰 不足",
+    notEnoughGem: "💎 鑽石不足!",
+    needTenGems: "💎 需要 10 顆鑽石!",
+    diamondGet: "💎 +1 鑽石!",
+    lifeLost: "💔 還剩 {n} 條",
+    levelUp: "🎉 第 {n} 關!",
+    equipped: "已裝備 {name}",
+    unequipped: "已卸下 {name}",
+    unlocked: "已解鎖並裝備 {name}!",
+    unlockedSkin: "已解鎖 {name}!",
+    wishOnlyToast: "✨ 僅能透過願望取得",
+    multiballActive: "🟡 多球啟動!",
+    multiballUsed: "🟡 本局已使用過",
+    safetyNetUsed: "🪁 安全網接住!",
+    needCoins: "💰 需要 {cost}(目前 {have})",
+    diamondsAdded: "💎 +{n} 顆鑽石!",
+    confirmTrade: "用 {cost} 💰 兌換 {qty} 💎?",
+
+    skillActive: "啟動中 {n}s",
+    skillActiveLabel: "啟動中",
+    skillCooldown: "冷卻中 {n}s",
+    skillReadyM: "按 M 鍵",
+    skillReadyF: "按 F 鍵",
+    skillUsedShort: "本局已使用",
+    skillPassive: "被動",
+
+    /* Skins */
+    skin_classic_name: "經典",       skin_classic_desc: "預設板子與球。",
+    skin_ocean_name:   "海洋",       skin_ocean_desc:   "★★★★ 清涼藍色。",
+    skin_gold_name:    "皇家黃金",    skin_gold_desc:    "★★★★ 閃亮奢華。",
+    skin_forest_name:  "森林",       skin_forest_desc:  "★★★★ 大地綠色。",
+    skin_robot_name:   "機械人",     skin_robot_desc:   "★★★★★ 紅色雷射光",
+    skin_rainbow_name: "彩虹",       skin_rainbow_desc: "★★★★★ 願望限定 · 稀有!",
+
+    /* Skills */
+    skill_wide_name:      "加寬板子",   skill_wide_desc:      "開局起就有更大的板子。",
+    skill_slow_name:      "慢速球",     skill_slow_desc:      "起始速度較慢。",
+    skill_extraLife_name: "額外生命",   skill_extraLife_desc: "開局擁有 2 條生命。",
+    skill_safety_name:    "安全網",     skill_safety_desc:    "每回合可從底部反彈球一次。",
+    skill_multiball_name: "多重球",     skill_multiball_desc: "★★★★★ 按 M — 本局結束前永久三球,額外 1 條生命。",
+    skill_laser_name:     "雷射",       skill_laser_desc:     "★★★★★ 按 F — 5 道雷射齊射。每局 1 次。",
+    /* Boss */
+    bossLevel:        "魔王",
+    bossDefeated:     "🏆 擊敗魔王!+{n} 💎",
+    bossLifeLost:     "💔 被魔王打中!還剩 {n} 條",
+    chargeReady:      "⚡ 雷射充能完成!按 F",
+    chargeFired:      "🔫 雷射造成 {n} 點傷害!",
+    pressFHint:       "— 按 F !",
+    achievementUnlocked: "🏆 全部魔王擊敗!成就 +10 💎!",
+    timeLabel:        "時間",
+    gameCompleteTitle: "🎉 通關!",
+    gameCompleteText:  "你征服了全部 9 關與 3 個魔王!<br>⏱ 時間:<b>{time}</b><br>🏆 最終分數:<b>{score}</b><br>💎 本局鑽石:<b>{diamonds}</b>",
+    btnNewGame:       "▶ 新遊戲",
+
+    /* Sections */
+    sectionPaddle: "板子",
+    sectionBall:   "球",
+    /* Ball skins */
+    ball_classic_name: "經典",     ball_classic_desc: "預設黃色球。",
+    ball_ember_name:   "餘燼",     ball_ember_desc:   "★★★★ 燃燒橙色。",
+    ball_crystal_name: "晶亮",     ball_crystal_desc: "★★★★ 冰晶藍色。",
+    ball_nova_name:    "新星",     ball_nova_desc:    "★★★★ 紫色能量。",
+
+    /* Laser toasts */
+    laserFired:     "🔫 雷射齊射!",
+    laserUsedToast: "🔫 本局已使用過"
+  }
+};
+let curLang = localStorage.getItem("flappyLang") || "en";
+function t(k, vars) {
+  const tbl = I18N[curLang] || I18N.en;
+  let s = tbl[k] != null ? tbl[k] : (I18N.en[k] != null ? I18N.en[k] : k);
+  if (vars) Object.keys(vars).forEach(v => s = s.split(`{${v}}`).join(vars[v]));
+  return s;
+}
+function applyLang() {
+  document.documentElement.lang = curLang === "zh" ? "zh-Hant" : "en";
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const k = el.dataset.i18n;
+    const v = t(k);
+    if (v != null) el.innerHTML = v;
+  });
+}
+window.addEventListener("storage", e => {
+  if (e.key === "flappyLang" && e.newValue && e.newValue !== curLang) {
+    curLang = e.newValue;
+    applyLang();
+    if (shopBackdrop.classList.contains("show")) renderShop();
+    refreshHUD();
+    updateSkillCorner();
+  }
+});
+
+/* ============ Per-game store ============ */
+const STORE = {
+  get skin()       { return localStorage.getItem("brick.skin") || "classic"; },
+  set skin(v)      { localStorage.setItem("brick.skin", v); },
+  get owned()      { try { return JSON.parse(localStorage.getItem("brick.owned") || '["classic"]'); } catch { return ["classic"]; } },
+  set owned(v)     { localStorage.setItem("brick.owned", JSON.stringify(v)); },
+  /* Separate ball skin slot */
+  get ballSkin()   { return localStorage.getItem("brick.ballSkin") || "classic"; },
+  set ballSkin(v)  { localStorage.setItem("brick.ballSkin", v); },
+  get ballOwned()  { try { return JSON.parse(localStorage.getItem("brick.ballOwned") || '["classic"]'); } catch { return ["classic"]; } },
+  set ballOwned(v) { localStorage.setItem("brick.ballOwned", JSON.stringify(v)); },
+  get up()         { try { return JSON.parse(localStorage.getItem("brick.up") || "{}"); } catch { return {}; } },
+  set up(v)        { localStorage.setItem("brick.up", JSON.stringify(v)); },
+  get skill()      { return localStorage.getItem("brick.skill") || ""; },
+  set skill(v)     { if (v) localStorage.setItem("brick.skill", v); else localStorage.removeItem("brick.skill"); }
+};
+
+/* ============ Catalogue ============ */
+const SKINS = [
+  { id: "classic", paddle: "#ec407a", ball: "#fff176", rarity: 3 },
+  { id: "ocean",   paddle: "#42a5f5", ball: "#b3e5fc", price: 50,  rarity: 4 },
+  { id: "gold",    paddle: "#ffb300", ball: "#fff59d", price: 200, rarity: 4 },
+  { id: "forest",  paddle: "#43a047", ball: "#c5e1a5", price: 300, rarity: 4 },
+  { id: "robot",   paddle: "#546e7a", ball: "#ff5252", wishOnly: true, rarity: 5 },
+  { id: "rainbow", wishOnly: true, rarity: 5 }
+];
+const SKIN_GRADIENT = "linear-gradient(135deg,#ef5350,#ffd54f,#66bb6a,#4dd0e1,#7e57c2)";
+
+const BALL_SKINS = [
+  { id: "classic", color: "#fff176", rarity: 3 },
+  { id: "ember",   color: "#ff7043", price: 40,  rarity: 4 },
+  { id: "crystal", color: "#80deea", price: 120, rarity: 4 },
+  { id: "nova",    color: "#ce93d8", price: 240, rarity: 4 }
+];
+
+const UPGRADES = [
+  { id: "wide",      price: 80,  icon: "📏" },
+  { id: "slow",      price: 50,  icon: "🐢" },
+  { id: "extraLife", price: 100, icon: "❤" },
+  { id: "safety",    price: 200, icon: "🪁" },
+  { id: "multiball", wishOnly: true, icon: "🟡", rarity: 5 },
+  { id: "laser",     wishOnly: true, icon: "🔫", rarity: 5 }
+];
+
+const WISH_COST = 1, PITY_5_MAX = 70, PITY_4_MAX = 20;
+const BASE_5_PCT = 1, BASE_4_PCT = 7;
+const DUP_4_COINS = 80, DUP_5_COINS = 200;
+const TRADE_RATE = 400;
+
+/* ============ Constants ============ */
+const W = 400, H = 500;
+const PADDLE_BASE_W = 70, PADDLE_H = 12;
+const PADDLE_Y = H - 30;
+const BALL_R = 7;
+const BRICK_COLS = 8;
+const BRICK_W = (W - 8) / BRICK_COLS;
+const BRICK_H = 22;
+const BRICK_OFFSET_Y = 60;
+const BRICK_GAP = 3;
+const BRICK_COLORS = ["#ef5350","#ff9800","#ffd54f","#66bb6a","#42a5f5","#7e57c2","#ec407a","#26a69a","#5d4037"];
+
+/* ============ DOM ============ */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const livesEl = document.getElementById("lives");
+const bestEl  = document.getElementById("best");
+const levelEl = document.getElementById("level");
+const speedEl = document.getElementById("speed");
+const coinEl  = document.getElementById("coinCount");
+const gemEl   = document.getElementById("diamondCount");
+const overlay = document.getElementById("overlay");
+const toastEl = document.getElementById("toast");
+const shopBackdrop    = document.getElementById("shopBackdrop");
+const wishBackdrop    = document.getElementById("wishBackdrop");
+const recordsBackdrop = document.getElementById("recordsBackdrop");
+
+/* ============ State ============ */
+let paddleX, paddleW;
+let balls = [];
+let bricks = [];
+let score = 0, lives = 3, level = 1, ballSpeed = 4;
+let runDiamonds = 0;
+let multiballActive = false;
+let laserUsed = false;
+let laserBeams = [];     /* {x, time} — fading beam visuals */
+let laserHits = [];      /* {x, y, time} — brick-impact sparks */
+let safetyNetUsed = false;
+/* Boss-fight charge laser: 4 wall hits = 1 charge, F spends it for 3 HP damage */
+let wallHitCount = 0;
+let laserCharges = 0;
+const WALL_HITS_PER_CHARGE = 4;
+const CHARGE_LASER_DAMAGE = 3;
+/* Auto-pause tracking: pause when a popup opens, resume when last one closes */
+let wasPlayingBeforePopup = false;
+let pauseStart = 0;
+/* Prep countdown — gives player ~2s to position the paddle before ball launches */
+let launchTimer = 0;
+const PREP_MS = 2000;
+/* Play time tracking (ms during active play only — not paused, not in countdown) */
+let playTime = 0;
+let lastFrameTime = 0;
+/* Boss fight (Level 3) */
+let boss = null;          /* {x, y, w, h, hp, maxHp, vx, lastWallSpawn, lastBallShoot} */
+let bossBullets = [];     /* hostile balls fired by the boss */
+const BOSS_LEVELS = [3, 6, 9];
+const FINAL_LEVEL  = 9;
+function isBossLevel(lvl) { return BOSS_LEVELS.includes(lvl); }
+function bossIdx(lvl)     { return BOSS_LEVELS.indexOf(lvl); }
+const BOSS_W = 130, BOSS_H = 50;
+/* Speed-over-time: bump every 5s while playing, cap at 2x */
+let speedMult = 1.0;
+let lastSpeedBump = 0;
+const SPEED_CAP = 2.0;
+const SPEED_BUMP_INTERVAL = 5000; // ms
+const SPEED_BUMP_STEP = 0.1;
+let best = parseInt(localStorage.getItem("brick.best") || "0", 10);
+let state = "menu";
+const INPUT = { left: false, right: false, mouseX: null };
+
+/* ============ HUD ============ */
+function refreshHUD() {
+  bestEl.textContent  = best;
+  levelEl.textContent = level;
+  scoreEl.textContent = score;
+  coinEl.textContent  = WALLET.coins;
+  gemEl.textContent   = WALLET.diamonds;
+  if (speedEl) speedEl.textContent = speedMult.toFixed(2) + "x";
+  const sc = document.getElementById("shopCoins");
+  const sg = document.getElementById("shopGems");
+  if (sc) sc.textContent = WALLET.coins;
+  if (sg) sg.textContent = WALLET.diamonds;
+}
+
+let toastTimer;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1600);
+}
+
+/* ============ Game setup ============ */
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+function setupLevel() {
+  paddleW = STORE.skill === "wide" ? 100 : PADDLE_BASE_W;
+  paddleX = W/2 - paddleW/2;
+  ballSpeed = (STORE.skill === "slow" ? 3.5 : 4) + (level - 1) * 0.4;
+  ballSpeed = Math.min(ballSpeed, 7);
+
+  /* Reset speed each level — speed-bumps start fresh */
+  speedMult = 1.0;
+  lastSpeedBump = 0;
+  speedEl.textContent = "1.00x";
+
+  bricks = [];
+  bossBullets = [];
+  if (isBossLevel(level)) {
+    /* Boss fight — scaling HP / reward by boss index */
+    const idx = bossIdx(level);
+    const hp  = 25 + idx * 15;
+    boss = {
+      x: W / 2 - BOSS_W / 2,
+      y: 50,
+      w: BOSS_W, h: BOSS_H,
+      hp, maxHp: hp,
+      vx: 1.8 + idx * 0.3,
+      lastWallSpawn: 0,
+      lastBallShoot: 0,
+      reward: idx + 1   /* 1, 2, 3 💎 */
+    };
+  } else {
+    boss = null;
+    const rows = Math.min(4 + level, 8);
+    /* Random sparse layout — density rises with level, capped at ~75% */
+    const density = Math.min(0.75, 0.5 + (level - 1) * 0.05);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < BRICK_COLS; c++) {
+        if (Math.random() > density) continue;
+        bricks.push({
+          x: c * BRICK_W + 4,
+          y: r * (BRICK_H + BRICK_GAP) + BRICK_OFFSET_Y,
+          alive: true,
+          color: BRICK_COLORS[r % BRICK_COLORS.length]
+        });
+      }
+    }
+    /* Safety: if RNG produced nothing, force one row */
+    if (bricks.length === 0) {
+      for (let c = 0; c < BRICK_COLS; c++) {
+        bricks.push({
+          x: c * BRICK_W + 4,
+          y: BRICK_OFFSET_Y,
+          alive: true,
+          color: BRICK_COLORS[0]
+        });
+      }
+    }
+  }
+  resetBall();
+  safetyNetUsed = false;
+  multiballEnd = 0;
+  laserBullets = [];
+  livesEl.textContent = "❤".repeat(Math.max(0, lives));
+  levelEl.textContent = level;
+}
+
+function resetBall() {
+  balls = [{
+    x: paddleX + paddleW/2,
+    y: PADDLE_Y - BALL_R - 2,
+    vx: 0, vy: 0,
+    stuck: true
+  }];
+}
+
+function launchBall() {
+  const sp = ballSpeed * speedMult;
+  for (const b of balls) {
+    if (b.stuck) {
+      b.stuck = false;
+      b.vx = (Math.random() - 0.5) * sp * 0.8;
+      b.vy = -sp;
+    }
+  }
+  if (!lastSpeedBump) lastSpeedBump = performance.now();
+  /* Multiball is permanent once activated: every launch produces triple ball */
+  if (multiballActive && balls.length === 1) spawnMultiball();
+}
+
+function spawnMultiball() {
+  const base = balls[0];
+  if (!base) return;
+  const sp = Math.max(Math.hypot(base.vx, base.vy), ballSpeed * speedMult);
+  for (const offset of [-0.4, 0.4]) {
+    balls.push({
+      x: base.x, y: base.y,
+      vx: Math.sin(offset) * sp,
+      vy: -Math.abs(Math.cos(offset) * sp),
+      stuck: false
+    });
+  }
+}
+
+function resetGame() {
+  score = 0;
+  level = 1;
+  runDiamonds = 0;
+  playTime = 0;
+  lastFrameTime = 0;
+  multiballActive = false;
+  speedMult = 1.0;
+  lastSpeedBump = 0;
+  launchTimer = 0;
+  laserUsed = false;
+  laserBeams = [];
+  laserHits = [];
+  wallHitCount = 0;
+  laserCharges = 0;
+  updateBossEnergyUI();
+  /* Default 1 life; Extra Life or Multiball each give +1 (one skill equipped at a time) */
+  lives = (STORE.skill === "extraLife" || STORE.skill === "multiball") ? 2 : 1;
+  setupLevel();
+  refreshHUD();
+}
+
+/* ============ Boss ============ */
+function damageBoss(amount) {
+  if (!boss) return;
+  boss.hp -= amount;
+  SFX.bossHit();
+  shake(amount >= 3 ? 8 : 4, amount >= 3 ? 280 : 160);
+  if (boss.hp <= 0) {
+    SFX.bossDefeated();
+    shake(14, 500);
+    const reward = boss.reward || 1;
+    const beatenLevel = level;
+    boss = null;
+    bossBullets = [];
+    score += 20;
+    WALLET.coins += 20;
+    WALLET.diamonds += reward;
+    runDiamonds += reward;
+    scoreEl.textContent = score;
+    if (score > best) { best = score; localStorage.setItem("brick.best", best); bestEl.textContent = best; }
+    toast(t("bossDefeated", { n: reward }));
+
+    /* Track defeated bosses for the all-time achievement */
+    let completed;
+    try { completed = JSON.parse(localStorage.getItem("brick.bossesDefeated") || "[]"); }
+    catch { completed = []; }
+    if (!completed.includes(beatenLevel)) {
+      completed.push(beatenLevel);
+      localStorage.setItem("brick.bossesDefeated", JSON.stringify(completed));
+    }
+    const allBeaten = BOSS_LEVELS.every(l => completed.includes(l));
+    if (allBeaten && !localStorage.getItem("brick.allBossesAchieve")) {
+      localStorage.setItem("brick.allBossesAchieve", "1");
+      WALLET.diamonds += 10;
+      runDiamonds += 10;
+      toast(t("achievementUnlocked"));
+      shake(18, 700);
+      flash5StarBig();
+    }
+
+    const flash = document.createElement("div");
+    flash.className = "screenFlash";
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 700);
+
+    /* Final boss — show game-complete celebration instead of advancing */
+    if (beatenLevel === FINAL_LEVEL) {
+      showGameComplete();
+      return;
+    }
+    level++;
+    toast(t("levelUp", { n: level }));
+    SFX.levelUp();
+    setupLevel();
+    tryStartLaunch(); /* auto-ready after boss kill */
+  }
+}
+
+function showGameComplete() {
+  recordRun(score);
+  saveRecord(score);
+  /* Bigger 5-star burst + extended fanfare */
+  flash5StarBig();
+  flash5StarBig();
+  setTimeout(flash5StarBig, 300);
+  setTimeout(flash5StarBig, 600);
+  SFX.winFinale();
+  shake(20, 900);
+  showMenu(
+    t("gameCompleteTitle"),
+    t("gameCompleteText", {
+      time:     formatTime(playTime),
+      score:    score,
+      diamonds: runDiamonds
+    }),
+    [{ label: t("btnNewGame"), primary: true, action: () => { resetGame(); startPlaying(); } }]
+  );
+}
+
+function flash5StarBig() {
+  const burst = document.createElement("div");
+  burst.className = "fiveStarBurst";
+  for (let i = 0; i < 18; i++) {
+    const star = document.createElement("span");
+    star.textContent = "★";
+    const ang = (i / 18) * Math.PI * 2;
+    const dist = 200 + Math.random() * 140;
+    star.style.setProperty("--dx", `${Math.cos(ang) * dist}px`);
+    star.style.setProperty("--dy", `${Math.sin(ang) * dist}px`);
+    star.style.animationDelay = `${i * 0.02}s`;
+    burst.appendChild(star);
+  }
+  document.body.appendChild(burst);
+  setTimeout(() => burst.remove(), 1800);
+}
+
+function bossUpdate() {
+  if (!boss) return;
+  if (launchTimer) return; /* Boss stays still during prep countdown */
+  const now = performance.now();
+  /* Move horizontally, bounce off canvas edges */
+  boss.x += boss.vx;
+  if (boss.x < 0)                { boss.x = 0;            boss.vx = Math.abs(boss.vx); }
+  if (boss.x + boss.w > W)       { boss.x = W - boss.w;   boss.vx = -Math.abs(boss.vx); }
+  /* Speeds up slightly as HP drops */
+  boss.vx = Math.sign(boss.vx) * (1.8 + (1 - boss.hp / boss.maxHp) * 1.6);
+
+  /* Skill: spawn 2-3 bricks every 4 seconds */
+  if (now - boss.lastWallSpawn > 4000) {
+    boss.lastWallSpawn = now;
+    const count = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < count; i++) {
+      const r = 4 + Math.floor(Math.random() * 4);
+      const c = Math.floor(Math.random() * BRICK_COLS);
+      const xPos = c * BRICK_W + 4;
+      const yPos = r * (BRICK_H + BRICK_GAP) + BRICK_OFFSET_Y;
+      if (bricks.some(b => b.alive && b.x === xPos && b.y === yPos)) continue;
+      bricks.push({
+        x: xPos, y: yPos,
+        alive: true,
+        color: BRICK_COLORS[r % BRICK_COLORS.length]
+      });
+    }
+  }
+
+  /* Skill: shoot 1-2 hostile bullets every 6 seconds */
+  if (now - boss.lastBallShoot > 6000) {
+    boss.lastBallShoot = now;
+    const count = 1 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < count; i++) {
+      bossBullets.push({
+        x: boss.x + boss.w / 2 + (Math.random() - 0.5) * boss.w * 0.7,
+        y: boss.y + boss.h,
+        vy: 4.2
+      });
+    }
+  }
+}
+
+function updateBossBullets() {
+  for (let i = bossBullets.length - 1; i >= 0; i--) {
+    const bullet = bossBullets[i];
+    bullet.y += bullet.vy;
+    if (bullet.y > H + 10) { bossBullets.splice(i, 1); continue; }
+    /* Bullet hits paddle: lose 1 life, bullet disappears */
+    if (bullet.y + 5 >= PADDLE_Y && bullet.y - 5 <= PADDLE_Y + PADDLE_H &&
+        bullet.x >= paddleX && bullet.x <= paddleX + paddleW) {
+      bossBullets.splice(i, 1);
+      lives--;
+      livesEl.textContent = "❤".repeat(Math.max(0, lives));
+      if (lives <= 0) { gameOver(); return; }
+      toast(t("bossLifeLost", { n: lives }));
+    }
+  }
+}
+
+/* ============ Step ============ */
+function step() {
+  /* Launch countdown — fire the ball when timer expires */
+  if (launchTimer && performance.now() >= launchTimer) {
+    launchTimer = 0;
+    launchBall();
+  }
+
+  /* Boss AI + projectiles */
+  bossUpdate();
+  updateBossBullets();
+
+  /* Speed bump every SPEED_BUMP_INTERVAL ms */
+  if (lastSpeedBump && speedMult < SPEED_CAP) {
+    const now = performance.now();
+    while (now - lastSpeedBump >= SPEED_BUMP_INTERVAL && speedMult < SPEED_CAP) {
+      const oldMult = speedMult;
+      speedMult = Math.min(SPEED_CAP, +(speedMult + SPEED_BUMP_STEP).toFixed(4));
+      const ratio = speedMult / oldMult;
+      for (const b of balls) {
+        if (b.stuck) continue;
+        b.vx *= ratio;
+        b.vy *= ratio;
+      }
+      lastSpeedBump += SPEED_BUMP_INTERVAL;
+      speedEl.textContent = speedMult.toFixed(2) + "x";
+    }
+  }
+
+  /* Paddle */
+  if (INPUT.mouseX != null) {
+    paddleX = clamp(INPUT.mouseX - paddleW/2, 0, W - paddleW);
+  } else {
+    const dx = (INPUT.right ? 1 : 0) - (INPUT.left ? 1 : 0);
+    paddleX = clamp(paddleX + dx * 6, 0, W - paddleW);
+  }
+
+  /* Balls */
+  for (let i = balls.length - 1; i >= 0; i--) {
+    const b = balls[i];
+    if (b.stuck) {
+      b.x = paddleX + paddleW/2;
+      continue;
+    }
+    b.x += b.vx;
+    b.y += b.vy;
+
+    if (b.x - BALL_R < 0)  { b.x = BALL_R;       b.vx = Math.abs(b.vx);  }
+    if (b.x + BALL_R > W)  { b.x = W - BALL_R;   b.vx = -Math.abs(b.vx); }
+    if (b.y - BALL_R < 0)  { b.y = BALL_R;       b.vy = Math.abs(b.vy);  }
+
+    /* Bottom: ball falls — lose 1 life per ball, with safety-net escape */
+    if (b.y - BALL_R > H) {
+      if (STORE.skill === "safety" && !safetyNetUsed) {
+        safetyNetUsed = true;
+        b.y = H - BALL_R - 1;
+        b.vy = -Math.abs(b.vy);
+        toast(t("safetyNetUsed"));
+      } else {
+        balls.splice(i, 1);
+        lives--;
+        livesEl.textContent = "❤".repeat(Math.max(0, lives));
+        SFX.lifeLost();
+        shake(6, 250);
+        if (lives <= 0) { gameOver(); return; }
+        toast(t("lifeLost", { n: lives }));
+        continue;
+      }
+    }
+
+    /* Paddle collision */
+    if (b.vy > 0 &&
+        b.y + BALL_R >= PADDLE_Y && b.y - BALL_R <= PADDLE_Y + PADDLE_H &&
+        b.x >= paddleX && b.x <= paddleX + paddleW) {
+      b.y = PADDLE_Y - BALL_R - 1;
+      const hit = (b.x - paddleX) / paddleW;
+      const angle = (hit - 0.5) * (Math.PI * 0.7);
+      const sp = Math.hypot(b.vx, b.vy);
+      b.vx = Math.sin(angle) * sp;
+      b.vy = -Math.cos(angle) * sp;
+      SFX.paddle();
+    }
+
+    /* Boss collision — bounce + 1 HP damage */
+    if (boss &&
+        b.x + BALL_R > boss.x && b.x - BALL_R < boss.x + boss.w &&
+        b.y + BALL_R > boss.y && b.y - BALL_R < boss.y + boss.h) {
+      const prevY = b.y - b.vy;
+      if (prevY + BALL_R <= boss.y || prevY - BALL_R >= boss.y + boss.h) b.vy = -b.vy;
+      else b.vx = -b.vx;
+      damageBoss(1);
+      if (!boss) continue; /* boss died, skip brick loop */
+    }
+
+    /* Brick collisions */
+    for (const brick of bricks) {
+      if (!brick.alive) continue;
+      const bw = BRICK_W - BRICK_GAP;
+      if (b.x + BALL_R > brick.x && b.x - BALL_R < brick.x + bw &&
+          b.y + BALL_R > brick.y && b.y - BALL_R < brick.y + BRICK_H) {
+        brick.alive = false;
+        score++;
+        scoreEl.textContent = score;
+        WALLET.coins += 1;
+        if (score > best) {
+          best = score;
+          localStorage.setItem("brick.best", best);
+          bestEl.textContent = best;
+        }
+        const prevX = b.x - b.vx, prevY = b.y - b.vy;
+        const fromTopOrBottom =
+          (prevY + BALL_R <= brick.y) || (prevY - BALL_R >= brick.y + BRICK_H);
+        if (fromTopOrBottom) b.vy = -b.vy; else b.vx = -b.vx;
+        SFX.brick();
+        registerBrickHit();
+        break;
+      }
+    }
+  }
+
+  /* If we ran out of balls but still have lives, respawn a stuck ball on the paddle */
+  if (balls.length === 0) {
+    resetBall();
+    safetyNetUsed = false;
+    tryStartLaunch(); /* auto-ready after a life loss */
+    return;
+  }
+
+  /* All bricks gone = level up (skip while boss is alive — boss death handles its own transition) */
+  if (!boss && bricks.every(b => !b.alive)) {
+    level++;
+    toast(t("levelUp", { n: level }));
+    SFX.levelUp();
+    setupLevel();
+    tryStartLaunch(); /* auto-ready: countdown starts immediately on level transition */
+  }
+}
+
+/* ============ Draw ============ */
+function draw() {
+  ctx.fillStyle = "#14141a";
+  ctx.fillRect(0, 0, W, H);
+
+  /* Bricks */
+  for (const brick of bricks) {
+    if (!brick.alive) continue;
+    ctx.fillStyle = brick.color;
+    roundedRect(brick.x, brick.y, BRICK_W - BRICK_GAP, BRICK_H, 4);
+  }
+
+  /* Boss — hidden until the 2-second prep countdown finishes */
+  if (boss && !launchTimer) {
+    const lowHp  = boss.hp <= boss.maxHp * 0.3;
+    const pulse  = 0.5 + 0.5 * Math.sin(performance.now() / 120);
+    /* Body */
+    ctx.fillStyle = lowHp
+      ? `rgb(${239 + pulse * 16}, 83, 80)`
+      : "#7b1fa2";
+    roundedRect(boss.x, boss.y, boss.w, boss.h, 10);
+    /* Eyes (look in direction of motion) */
+    const eyeOffset = boss.vx > 0 ? 3 : -3;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(boss.x + 32 + eyeOffset, boss.y + 22, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(boss.x + boss.w - 32 + eyeOffset, boss.y + 22, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.arc(boss.x + 32 + eyeOffset, boss.y + 22, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(boss.x + boss.w - 32 + eyeOffset, boss.y + 22, 3.5, 0, Math.PI * 2); ctx.fill();
+    /* Mouth (angrier when low HP) */
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (lowHp) {
+      ctx.moveTo(boss.x + 35, boss.y + 40);
+      ctx.lineTo(boss.x + boss.w - 35, boss.y + 40);
+    } else {
+      ctx.arc(boss.x + boss.w / 2, boss.y + 38, 10, 0.15 * Math.PI, 0.85 * Math.PI);
+    }
+    ctx.stroke();
+    /* HP bar above boss */
+    const barX = 20, barY = 18, barW = W - 40, barH = 9;
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = "#ef5350";
+    ctx.fillRect(barX, barY, barW * Math.max(0, boss.hp / boss.maxHp), barH);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 11px Trebuchet MS, Arial";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(`${t("bossLevel")}  ${boss.hp}/${boss.maxHp}`, barX, barY - 2);
+  }
+
+  /* Boss bullets (hostile balls) */
+  for (const bullet of bossBullets) {
+    ctx.save();
+    ctx.fillStyle = "rgba(255,82,82,0.4)";
+    ctx.beginPath(); ctx.arc(bullet.x, bullet.y, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#ff5252";
+    ctx.beginPath(); ctx.arc(bullet.x, bullet.y, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  const skin = SKINS.find(s => s.id === STORE.skin) || SKINS[0];
+  const now = performance.now();
+
+  /* Wish-skin aura */
+  if (skin.wishOnly) {
+    ctx.save();
+    let auraColor;
+    if (skin.id === "rainbow") {
+      const hue = (now / 20) % 360;
+      auraColor = `hsla(${hue}, 90%, 60%, ${0.28 + 0.15 * Math.sin(now/200)})`;
+    } else if (skin.id === "robot") {
+      auraColor = `rgba(255,82,82,${0.22 + 0.18 * Math.sin(now/180)})`;
+    } else {
+      auraColor = `rgba(255,213,79,${0.22 + 0.15 * Math.sin(now/200)})`;
+    }
+    ctx.fillStyle = auraColor;
+    ctx.fillRect(paddleX - 8, PADDLE_Y - 6, paddleW + 16, PADDLE_H + 12);
+    for (const b of balls) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, BALL_R * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* Paddle */
+  if (skin.id === "rainbow") {
+    ctx.fillStyle = `hsl(${(now / 10) % 360}, 75%, 60%)`;
+  } else {
+    ctx.fillStyle = skin.paddle || "#ff9800";
+  }
+  roundedRect(paddleX, PADDLE_Y, paddleW, PADDLE_H, 6);
+
+  /* Balls */
+  const ballSkin = BALL_SKINS.find(s => s.id === STORE.ballSkin) || BALL_SKINS[0];
+  for (const b of balls) {
+    if (skin.id === "rainbow") {
+      ctx.fillStyle = `hsl(${(now / 10 + 180) % 360}, 80%, 65%)`;
+    } else {
+      ctx.fillStyle = ballSkin.color;
+    }
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, BALL_R, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* Laser beams: fading thick vertical pillar with bright white core */
+  const nowB = performance.now();
+  laserBeams = laserBeams.filter(b => nowB - b.time < 700);
+  for (const beam of laserBeams) {
+    const tAge = (nowB - beam.time) / 700;
+    ctx.save();
+    /* Outer halo */
+    ctx.fillStyle = `rgba(255,82,82,${(1 - tAge) * 0.35})`;
+    ctx.fillRect(beam.x - 14, 0, 28, PADDLE_Y);
+    /* Mid */
+    ctx.fillStyle = `rgba(255,82,82,${(1 - tAge) * 0.8})`;
+    ctx.fillRect(beam.x - 6, 0, 12, PADDLE_Y);
+    /* White hot core */
+    ctx.fillStyle = `rgba(255,255,255,${(1 - tAge) * 0.95})`;
+    ctx.fillRect(beam.x - 2, 0, 4, PADDLE_Y);
+    ctx.restore();
+  }
+  /* Launch countdown overlay */
+  if (launchTimer) {
+    const remaining = (launchTimer - performance.now()) / 1000;
+    if (remaining > 0) {
+      const n = Math.ceil(remaining);
+      const frac = remaining - Math.floor(remaining);
+      ctx.save();
+      ctx.fillStyle = `rgba(255,255,255,${0.55 + 0.45 * frac})`;
+      ctx.font = "bold 110px Trebuchet MS, Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "rgba(0,0,0,0.6)";
+      ctx.shadowBlur = 8;
+      ctx.fillText(String(n), W / 2, H / 2);
+      ctx.font = "bold 22px Trebuchet MS, Arial";
+      ctx.fillStyle = "rgba(255,213,79,0.85)";
+      ctx.fillText("READY", W / 2, H / 2 - 80);
+      ctx.restore();
+    }
+  }
+
+  /* Laser impact sparks at destroyed bricks */
+  laserHits = laserHits.filter(h => nowB - h.time < 500);
+  for (const hit of laserHits) {
+    const tAge = (nowB - hit.time) / 500;
+    ctx.save();
+    /* Expanding ring */
+    ctx.strokeStyle = `rgba(255,160,80,${1 - tAge})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(hit.x, hit.y, 6 + tAge * 22, 0, Math.PI * 2);
+    ctx.stroke();
+    /* 6 sparks flying outward */
+    ctx.fillStyle = `rgba(255,213,79,${1 - tAge})`;
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2 + hit.time / 200;
+      const r = 4 + tAge * 24;
+      ctx.fillRect(hit.x + Math.cos(ang) * r - 1.5, hit.y + Math.sin(ang) * r - 1.5, 3, 3);
+    }
+    ctx.restore();
+  }
+}
+
+function roundedRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function formatTime(ms) {
+  const tot = Math.floor(ms / 1000);
+  const m = String(Math.floor(tot / 60)).padStart(2, "0");
+  const s = String(tot % 60).padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+function loop() {
+  const now = performance.now();
+  const dt = lastFrameTime ? (now - lastFrameTime) : 0;
+  lastFrameTime = now;
+  /* Time advances only when actively playing — not during countdown or popup pause */
+  if (state === "playing" && !launchTimer) {
+    playTime += dt;
+    document.getElementById("playTime").textContent = formatTime(playTime);
+  }
+  if (state === "playing") step();
+  draw();
+  updateSkillStatus();
+  refreshMobileSkillBtns();
+  applyShake();
+  requestAnimationFrame(loop);
+}
+
+/* ============ Menus ============ */
+function showMenu(title, text, buttons) {
+  state = "menu";
+  overlay.innerHTML = `
+    <h2>${title}</h2>
+    <p>${text}</p>
+    <div class="row">
+      ${buttons.map((b, i) => `<button class="btn ${b.primary ? '' : 'secondary'}" data-i="${i}">${b.label}</button>`).join("")}
+    </div>
+  `;
+  overlay.classList.add("show");
+  overlay.querySelectorAll("button[data-i]").forEach(btn => {
+    btn.onclick = () => buttons[+btn.dataset.i].action();
+  });
+}
+function hideOverlay() { overlay.classList.remove("show"); }
+
+function startPlaying() {
+  hideOverlay();
+  state = "playing";
+  tryStartLaunch(); /* auto-ready countdown on every play start */
+}
+
+function gameOver() {
+  recordRun(score);
+  saveRecord(score);
+  showMenu(
+    t("menuGameOver"),
+    t("finalScoreLine", { score, best, coins: score, diamonds: runDiamonds > 0 ? ` · 💎 ${runDiamonds}` : "" }),
+    [{ label: t("btnPlayAgain"), primary: true, action: () => { resetGame(); startPlaying(); } }]
+  );
+}
+
+function showStartMenu() {
+  showMenu(t("menuReady"), t("menuReadyText"), [{ label: t("btnStart"), primary: true, action: startPlaying }]);
+}
+
+function showPauseMenu() {
+  showMenu(t("menuPaused"), t("menuPausedText"), [{ label: t("btnResume"), primary: true, action: startPlaying }]);
+}
+
+/* ============ Wish ============ */
+const PITY = {
+  get p5()  { return parseInt(localStorage.getItem("brick.pity5") || "0", 10); },
+  set p5(v) { localStorage.setItem("brick.pity5", v|0); },
+  get p4()  { return parseInt(localStorage.getItem("brick.pity4") || "0", 10); },
+  set p4(v) { localStorage.setItem("brick.pity4", v|0); }
+};
+function isFirstWish() { return !localStorage.getItem("brick.firstWishUsed"); }
+
+function openWish() {
+  autoPauseOnPopup();
+  resetWishStage();
+  if (isFirstWish()) {
+    document.getElementById("wishStage").style.display = "none";
+    document.getElementById("firstWishStage").style.display = "block";
+  } else {
+    document.getElementById("firstWishStage").style.display = "none";
+  }
+  refreshWishUI();
+  wishBackdrop.classList.add("show");
+}
+function closeWish() { wishBackdrop.classList.remove("show"); autoResumeOnPopupClose(); }
+wishBackdrop.addEventListener("click", closeWish);
+
+function resetWishStage() {
+  document.getElementById("wishStage").style.display = isFirstWish() ? "none" : "block";
+  document.getElementById("wishResult").style.display = "none";
+  if (isFirstWish()) document.getElementById("firstWishStage").style.display = "block";
+  refreshWishUI();
+}
+
+function refreshWishUI() {
+  document.getElementById("wishGemsHeader").textContent = WALLET.diamonds;
+  const p5 = document.getElementById("pity5Display");
+  const p4 = document.getElementById("pity4Display");
+  if (p5) p5.textContent = PITY.p5;
+  if (p4) p4.textContent = PITY.p4;
+  document.getElementById("wishGoBtn").disabled  = WALLET.diamonds < 1;
+  document.getElementById("wishTenBtn").disabled = WALLET.diamonds < 10;
+  updateTradeUI();
+}
+
+function rollWish(force4 = false) {
+  let p5 = PITY.p5 + 1, p4 = PITY.p4 + 1;
+  let rarity;
+  if (p5 >= PITY_5_MAX)                rarity = 5;
+  else if (p4 >= PITY_4_MAX || force4) rarity = 4;
+  else {
+    const r = Math.random() * 100;
+    if (r < BASE_5_PCT)               rarity = 5;
+    else if (r < BASE_4_PCT + BASE_5_PCT) rarity = 4;
+    else                              rarity = 3;
+  }
+  if (rarity === 5) { p5 = 0; p4 = 0; }
+  else if (rarity === 4) { p4 = 0; }
+  PITY.p5 = p5; PITY.p4 = p4;
+  if (rarity === 3) return { rarity: 3, coins: 15 + Math.floor(Math.random() * 36) };
+  return { rarity, ...pickWithUnownedBias(rarity) };
+}
+
+function pickWithUnownedBias(rarity) {
+  const skins  = SKINS.filter(s => s.rarity === rarity && s.id !== "classic").map(s => ({...s, _type: "skin"}));
+  const skills = UPGRADES.filter(u => u.rarity === rarity).map(u => ({...u, _type: "skill"}));
+  const pool = [...skins, ...skills];
+  if (pool.length === 0) return { item: null };
+  const ownedSkins = STORE.owned, ownedSkills = STORE.up;
+  const unowned = pool.filter(p => p._type === "skin" ? !ownedSkins.includes(p.id) : !ownedSkills[p.id]);
+  const src = (unowned.length > 0 && Math.random() < 0.8) ? unowned : pool;
+  return { item: src[Math.floor(Math.random() * src.length)] };
+}
+
+function applyWishResult(r) {
+  if (r.rarity === 3) { WALLET.coins += r.coins; return { dup: false, coinsGained: r.coins }; }
+  const it = r.item;
+  if (!it) return { dup: false };
+  if (it._type === "skin") {
+    const owned = STORE.owned;
+    if (owned.includes(it.id)) {
+      const refund = r.rarity === 5 ? DUP_5_COINS : DUP_4_COINS;
+      WALLET.coins += refund;
+      return { dup: true, coinsGained: refund };
+    }
+    owned.push(it.id); STORE.owned = owned;
+    return { dup: false, coinsGained: 0 };
+  }
+  const up = STORE.up;
+  if (up[it.id]) {
+    const refund = r.rarity === 5 ? DUP_5_COINS : DUP_4_COINS;
+    WALLET.coins += refund;
+    return { dup: true, coinsGained: refund };
+  }
+  up[it.id] = true; STORE.up = up;
+  return { dup: false, coinsGained: 0 };
+}
+
+function flash5Star() {
+  const el = document.createElement("div");
+  el.className = "screenFlash";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 700);
+  const burst = document.createElement("div");
+  burst.className = "fiveStarBurst";
+  for (let i = 0; i < 14; i++) {
+    const star = document.createElement("span");
+    star.textContent = "★";
+    const ang = (i / 14) * Math.PI * 2;
+    const dist = 180 + Math.random() * 120;
+    star.style.setProperty("--dx", `${Math.cos(ang) * dist}px`);
+    star.style.setProperty("--dy", `${Math.sin(ang) * dist}px`);
+    star.style.animationDelay = `${i * 0.03}s`;
+    burst.appendChild(star);
+  }
+  document.body.appendChild(burst);
+  setTimeout(() => burst.remove(), 1800);
+}
+
+function showWishResult(r, applied) {
+  document.getElementById("wishStage").style.display = "none";
+  document.getElementById("firstWishStage").style.display = "none";
+  document.getElementById("wishResult").style.display = "block";
+  const starsEl = document.getElementById("wishStars");
+  starsEl.className = `star${r.rarity} reveal-anim`;
+  starsEl.textContent = "★".repeat(r.rarity);
+  const itemEl = document.getElementById("wishItem");
+  itemEl.className = "reveal-anim";
+  let icon = "💰", msg = "";
+  if (r.rarity === 3) { icon = "💰"; msg = t("coinReward", { n: r.coins }); }
+  else if (r.item) {
+    const it = r.item;
+    icon = it.icon || (it._type === "skin" ? "🎨" : "⚡");
+    const nameKey = it._type === "skin" ? `skin_${it.id}_name` : `skill_${it.id}_name`;
+    const descKey = it._type === "skin" ? `skin_${it.id}_desc` : `skill_${it.id}_desc`;
+    const localName = t(nameKey);
+    const localDesc = t(descKey).replace(/^★+\s*/, "");
+    if (applied.dup) {
+      msg = `<b>${localName}</b><br><span style="opacity:.7">${t("alreadyOwned", { n: applied.coinsGained })}</span>`;
+    } else {
+      msg = `<b>${localName}</b><br>${localDesc}<br><span style="opacity:.7">${t("equipFromShop")}</span>`;
+    }
+  }
+  itemEl.textContent = icon;
+  document.getElementById("wishMessage").innerHTML = msg;
+  if (r.rarity === 5) flash5Star();
+}
+
+function makeWish() {
+  if (WALLET.diamonds < 1) return toast(t("notEnoughGem"));
+  WALLET.diamonds -= 1;
+  const r = rollWish();
+  const applied = applyWishResult(r);
+  showWishResult(r, applied);
+  SFX.wish();
+  if (r.rarity === 5) SFX.rare5();
+  else if (r.rarity === 4) SFX.rare4();
+}
+
+function makeTenWish() {
+  if (WALLET.diamonds < 10) return toast(t("needTenGems"));
+  WALLET.diamonds -= 10;
+  SFX.wish10();
+  const results = [];
+  let highestRarity = 3, totalCoins = 0, hasGood = false;
+  for (let i = 0; i < 10; i++) {
+    const force4 = (i === 9 && !hasGood);
+    const r = rollWish(force4);
+    if (r.rarity >= 4) hasGood = true;
+    results.push(r);
+    if (r.rarity > highestRarity) highestRarity = r.rarity;
+    const a = applyWishResult(r);
+    if (r.rarity === 3) totalCoins += r.coins;
+    else if (a.dup)     totalCoins += a.coinsGained;
+  }
+  document.getElementById("wishStage").style.display = "none";
+  document.getElementById("firstWishStage").style.display = "none";
+  document.getElementById("wishResult").style.display = "block";
+  const starsEl = document.getElementById("wishStars");
+  starsEl.className = `star${highestRarity} reveal-anim`;
+  starsEl.textContent = "★".repeat(highestRarity) + " 10× Pull";
+  const grid = results.map(r => {
+    let icon, name;
+    if (r.rarity === 3) { icon = "💰"; name = `+${r.coins}`; }
+    else                { icon = r.item ? (r.item.icon || "🎨") : "?"; name = r.item ? t(`skin_${r.item.id}_name`) : ""; }
+    return `<div class="wishGridItem s${r.rarity}">
+      <div class="wishGridIcon">${icon}</div>
+      <div class="wishGridName">${name}</div>
+      <div class="wishGridStars star${r.rarity}">${"★".repeat(r.rarity)}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("wishItem").innerHTML = `<div class="wishGrid">${grid}</div>`;
+  document.getElementById("wishItem").className = "";
+  document.getElementById("wishMessage").innerHTML = t("tenPullSum", { n: totalCoins });
+  if (highestRarity === 5) { flash5Star(); SFX.rare5(); }
+  else if (highestRarity === 4) SFX.rare4();
+}
+
+function claimFirstWish() {
+  if (!isFirstWish()) return;
+  localStorage.setItem("brick.firstWishUsed", "1");
+  const skins  = SKINS.filter(s => s.rarity === 4 && s.id !== "classic").map(s => ({...s, _type: "skin"}));
+  const skills = UPGRADES.filter(u => u.rarity === 4).map(u => ({...u, _type: "skill"}));
+  const pool = [...skins, ...skills];
+  const it = pool[Math.floor(Math.random() * pool.length)];
+  const r = { rarity: 4, item: it };
+  applyWishResult(r);
+  showWishResult(r, { dup: false, coinsGained: 0 });
+  SFX.wish();
+  SFX.rare4();
+}
+
+function updateTradeUI() {
+  const slider = document.getElementById("tradeSlider");
+  if (!slider) return;
+  /* Slider max = how many diamonds the player can afford (1 min so always usable) */
+  const affordable = Math.max(1, Math.floor(WALLET.coins / TRADE_RATE));
+  slider.max = affordable;
+  if (parseInt(slider.value, 10) > affordable) slider.value = affordable;
+  const qty = parseInt(slider.value, 10);
+  document.getElementById("tradeQty").textContent  = qty;
+  document.getElementById("tradeCost").textContent = qty * TRADE_RATE;
+}
+
+function executeTrade() {
+  const qty = parseInt(document.getElementById("tradeSlider").value, 10);
+  const cost = qty * TRADE_RATE;
+  if (WALLET.coins < cost) return toast(t("needCoins", { cost, have: WALLET.coins }));
+  if (!confirm(t("confirmTrade", { cost, qty }))) return;
+  WALLET.coins -= cost;
+  WALLET.diamonds += qty;
+  refreshWishUI();
+  toast(t("diamondsAdded", { n: qty, s: qty > 1 ? "s" : "" }));
+}
+
+/* ============ Records ============ */
+function getRecords() { try { return JSON.parse(localStorage.getItem("brick.records") || "[]"); } catch { return []; } }
+function getStats() {
+  try {
+    const s = JSON.parse(localStorage.getItem("brick.stats") || "{}");
+    return {
+      games: s.games || 0,
+      totalCoins: s.totalCoins || 0,
+      totalDiamonds: s.totalDiamonds || 0,
+      highestLevel: s.highestLevel || 1
+    };
+  } catch { return { games: 0, totalCoins: 0, totalDiamonds: 0, highestLevel: 1 }; }
+}
+function recordRun(finalScore) {
+  const s = getStats();
+  s.games++;
+  s.totalCoins += finalScore;
+  s.totalDiamonds += runDiamonds;
+  if (level > s.highestLevel) s.highestLevel = level;
+  localStorage.setItem("brick.stats", JSON.stringify(s));
+}
+function saveRecord(s) {
+  if (!s || s <= 0) return;
+  const name = localStorage.getItem("flappyName") || "Player";
+  let records = getRecords();
+  const existing = records.find(r => r.name === name);
+  if (existing) {
+    if (s > existing.score) { existing.score = s; existing.date = Date.now(); }
+  } else {
+    records.push({ name, score: s, date: Date.now() });
+  }
+  records.sort((a, b) => b.score - a.score);
+  localStorage.setItem("brick.records", JSON.stringify(records.slice(0, 5)));
+}
+function openRecords() { autoPauseOnPopup(); renderRecords(); recordsBackdrop.classList.add("show"); }
+function closeRecords() { recordsBackdrop.classList.remove("show"); autoResumeOnPopupClose(); }
+recordsBackdrop.addEventListener("click", closeRecords);
+
+function renderRecords() {
+  const records = getRecords();
+  const stats = getStats();
+  const list = document.getElementById("recordsList");
+  const myName = localStorage.getItem("flappyName") || "Player";
+  const topHtml = records.length === 0
+    ? `<div class="emptyRecords">${t("recordsEmpty")}</div>`
+    : records.map((r, i) => {
+        const d = new Date(r.date);
+        const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+        const isMe = r.name === myName;
+        return `
+          <div class="recordRow ${isMe ? 'me' : ''}">
+            <span class="rank">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1)}</span>
+            <span class="name">${escapeHtml(r.name)}</span>
+            <span class="score">${r.score}</span>
+            <span class="date">${dateStr}</span>
+          </div>`;
+      }).join("");
+  list.innerHTML = `
+    <div class="recordsSection">${t("topRuns")}</div>
+    ${topHtml}
+    <div class="recordsSection">${t("currentBalance")}</div>
+    <div class="recRow"><span>${t("coinsNow")}</span><b>${WALLET.coins}</b></div>
+    <div class="recRow"><span>${t("diamondsNow")}</span><b>${WALLET.diamonds}</b></div>
+    <div class="recordsSection">${t("lifetimeTotals")}</div>
+    <div class="recRow"><span>${t("gamesPlayed")}</span><b>${stats.games}</b></div>
+    <div class="recRow"><span>${t("totalCoinsEarned")}</span><b>${stats.totalCoins}</b></div>
+    <div class="recRow"><span>${t("totalDiamondsEarned")}</span><b>${stats.totalDiamonds}</b></div>
+    <div class="recRow"><span>${t("highestLevel")}</span><b>${stats.highestLevel}</b></div>
+  `;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ============ Shop ============ */
+let activeShopTab = "skins";
+function anyPopupOpen() {
+  return shopBackdrop.classList.contains("show") ||
+         wishBackdrop.classList.contains("show") ||
+         recordsBackdrop.classList.contains("show");
+}
+function autoPauseOnPopup() {
+  if (state === "playing") {
+    wasPlayingBeforePopup = true;
+    state = "menu";
+    pauseStart = performance.now();
+    document.getElementById("pauseOverlay").classList.add("show");
+  }
+}
+function autoResumeOnPopupClose() {
+  if (!anyPopupOpen() && wasPlayingBeforePopup) {
+    wasPlayingBeforePopup = false;
+    state = "playing";
+    document.getElementById("pauseOverlay").classList.remove("show");
+    /* Carry the pause duration over the live wall-clock timers */
+    if (pauseStart) {
+      const elapsed = performance.now() - pauseStart;
+      if (lastSpeedBump) lastSpeedBump += elapsed;
+      if (launchTimer)   launchTimer   += elapsed;
+      if (boss && boss.lastWallSpawn) boss.lastWallSpawn += elapsed;
+      if (boss && boss.lastBallShoot) boss.lastBallShoot += elapsed;
+    }
+    pauseStart = 0;
+    lastFrameTime = performance.now(); /* reset so paused span doesn't count as playtime */
+  }
+}
+
+function tryStartLaunch() {
+  if (state !== "playing") return;
+  if (launchTimer) return;
+  if (!balls.some(b => b.stuck)) return;
+  launchTimer = performance.now() + PREP_MS;
+}
+
+function openShop()  { autoPauseOnPopup(); refreshHUD(); renderShop(); shopBackdrop.classList.add("show"); }
+function closeShop() { shopBackdrop.classList.remove("show"); autoResumeOnPopupClose(); }
+shopBackdrop.addEventListener("click", closeShop);
+
+function switchShopTab(tab) {
+  activeShopTab = tab;
+  document.querySelectorAll(".shopTabs .tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.tab === tab)
+  );
+  document.getElementById("skinGrid").style.display    = tab === "skins"    ? "grid" : "none";
+  document.getElementById("upgradeGrid").style.display = tab === "upgrades" ? "grid" : "none";
+}
+
+function renderShop() {
+  const owned = STORE.owned;
+  const equipped = STORE.skin;
+  const up = STORE.up;
+  const equippedSkill = STORE.skill;
+
+  const ballOwned    = STORE.ballOwned;
+  const ballEquipped = STORE.ballSkin;
+
+  const paddleCards = SKINS.map(s => {
+    const isOwned = owned.includes(s.id);
+    const isEquipped = equipped === s.id;
+    const stars = s.wishOnly ? "★".repeat(s.rarity) + " " : "";
+    let statusHtml;
+    if (isEquipped)        statusHtml = `<span class="status status-equipped">${t("statusEquipped")}</span>`;
+    else if (isOwned)      statusHtml = `<span class="status status-equip">${t("statusEquip")}</span>`;
+    else if (s.wishOnly)   statusHtml = `<span class="status status-locked-gem">${t("statusWishOnly")}</span>`;
+    else                   statusHtml = `<span class="status status-locked">💰 ${s.price}</span>`;
+    const cls = ["gCard", isEquipped ? "selected" : "", s.wishOnly ? "gemOnly" : "", (!isOwned ? "locked" : "")].filter(Boolean).join(" ");
+    const swatch = s.id === "rainbow" ? SKIN_GRADIENT : s.paddle;
+    return `
+      <div class="${cls}" data-skin="${s.id}">
+        <div class="skinSwatch" style="background:${swatch}"></div>
+        <div class="name">${stars}${t(`skin_${s.id}_name`)}</div>
+        <div class="desc">${t(`skin_${s.id}_desc`).replace(/^★+\s*/, "")}</div>
+        ${statusHtml}
+      </div>`;
+  }).join("");
+
+  const ballCards = BALL_SKINS.map(s => {
+    const isOwned = ballOwned.includes(s.id);
+    const isEquipped = ballEquipped === s.id;
+    let statusHtml;
+    if (isEquipped)        statusHtml = `<span class="status status-equipped">${t("statusEquipped")}</span>`;
+    else if (isOwned)      statusHtml = `<span class="status status-equip">${t("statusEquip")}</span>`;
+    else                   statusHtml = `<span class="status status-locked">💰 ${s.price}</span>`;
+    const cls = ["gCard", isEquipped ? "selected" : "", (!isOwned ? "locked" : "")].filter(Boolean).join(" ");
+    return `
+      <div class="${cls}" data-ball="${s.id}">
+        <div class="ballSwatch" style="background:${s.color}"></div>
+        <div class="name">${t(`ball_${s.id}_name`)}</div>
+        <div class="desc">${t(`ball_${s.id}_desc`)}</div>
+        ${statusHtml}
+      </div>`;
+  }).join("");
+
+  document.getElementById("skinGrid").innerHTML = `
+    <div class="skinSection">${t("sectionPaddle")}</div>
+    <div class="skinSubGrid">${paddleCards}</div>
+    <div class="skinSection">${t("sectionBall")}</div>
+    <div class="skinSubGrid">${ballCards}</div>
+  `;
+
+  document.getElementById("upgradeGrid").innerHTML = UPGRADES.map(u => {
+    const has = !!up[u.id];
+    const isEq = equippedSkill === u.id;
+    const stars = u.wishOnly ? "★".repeat(u.rarity) + " " : "";
+    let statusHtml;
+    if (isEq)            statusHtml = `<span class="status status-equipped">${t("statusEquipped")}</span>`;
+    else if (has)        statusHtml = `<span class="status status-equip">${t("statusEquip")}</span>`;
+    else if (u.wishOnly) statusHtml = `<span class="status status-locked-gem">${t("statusWishOnly")}</span>`;
+    else                 statusHtml = `<span class="status status-locked">💰 ${u.price}</span>`;
+    const cls = ["gCard", isEq ? "selected" : "", u.wishOnly ? "gemOnly" : "", !has ? "locked" : ""].filter(Boolean).join(" ");
+    return `
+      <div class="${cls}" data-up="${u.id}">
+        <div class="icon">${u.icon}</div>
+        <div class="name">${stars}${t(`skill_${u.id}_name`)}</div>
+        <div class="desc">${t(`skill_${u.id}_desc`).replace(/^★+\s*/, "")}</div>
+        ${statusHtml}
+      </div>`;
+  }).join("");
+
+  /* Wish tab removed — wish-only items live in their tabs with the cyan glow */
+
+  document.querySelectorAll("[data-skin]").forEach(c => c.onclick = () => onSkinClick(c.dataset.skin));
+  document.querySelectorAll("[data-ball]").forEach(c => c.onclick = () => onBallSkinClick(c.dataset.ball));
+  document.querySelectorAll("[data-up]").forEach(c => c.onclick = () => onUpgradeClick(c.dataset.up));
+}
+
+function onBallSkinClick(id) {
+  const s = BALL_SKINS.find(x => x.id === id);
+  if (!s) return;
+  const localName = t(`ball_${id}_name`);
+  const owned = STORE.ballOwned;
+  if (owned.includes(id)) {
+    if (STORE.ballSkin === id) return;
+    STORE.ballSkin = id;
+    toast(t("equipped", { name: localName }));
+    renderShop();
+    return;
+  }
+  if (WALLET.coins < s.price) return toast(t("notEnoughCoin"));
+  WALLET.coins -= s.price;
+  owned.push(id); STORE.ballOwned = owned; STORE.ballSkin = id;
+  toast(t("unlockedSkin", { name: localName }));
+  renderShop();
+}
+
+function onSkinClick(id) {
+  const s = SKINS.find(x => x.id === id);
+  if (!s) return;
+  const localName = t(`skin_${id}_name`);
+  const owned = STORE.owned;
+  if (owned.includes(id)) {
+    if (STORE.skin === id) return;
+    STORE.skin = id;
+    toast(t("equipped", { name: localName }));
+    renderShop();
+    return;
+  }
+  if (s.wishOnly) return toast(t("wishOnlyToast"));
+  if (WALLET.coins < s.price) return toast(t("notEnoughCoin"));
+  WALLET.coins -= s.price;
+  owned.push(id); STORE.owned = owned; STORE.skin = id;
+  toast(t("unlockedSkin", { name: localName }));
+  renderShop();
+}
+
+function onUpgradeClick(id) {
+  const u = UPGRADES.find(x => x.id === id);
+  if (!u) return;
+  const localName = t(`skill_${id}_name`);
+  if (STORE.up[id]) {
+    if (STORE.skill === id) { STORE.skill = ""; toast(t("unequipped", { name: localName })); }
+    else                    { STORE.skill = id; toast(t("equipped",   { name: localName })); }
+    updateSkillCorner();
+    renderShop();
+    return;
+  }
+  if (u.wishOnly) return toast(t("wishOnlyToast"));
+  if (WALLET.coins < u.price) return toast(t("notEnoughCoin"));
+  WALLET.coins -= u.price;
+  const up = STORE.up; up[id] = true; STORE.up = up;
+  STORE.skill = id;
+  updateSkillCorner();
+  toast(t("unlocked", { name: localName }));
+  renderShop();
+}
+
+/* ============ Skill corner ============ */
+function updateSkillCorner() {
+  const id = STORE.skill;
+  const u = UPGRADES.find(x => x.id === id);
+  const el = document.getElementById("skillCorner");
+  if (!u) { el.classList.remove("show"); return; }
+  document.getElementById("skillCornerName").innerHTML = `${u.icon} ${t(`skill_${id}_name`)}`;
+  document.getElementById("skillCornerDesc").innerHTML = t(`skill_${id}_desc`);
+  el.classList.add("show");
+  updateSkillStatus();
+}
+
+function updateSkillStatus() {
+  const id = STORE.skill;
+  const statusEl = document.getElementById("skillCornerStatus");
+  if (!statusEl) return;
+  statusEl.className = "skillCornerStatus";
+  const now = performance.now();
+  if (id === "multiball") {
+    if (multiballActive) {
+      statusEl.classList.add("active");
+      statusEl.innerHTML = t("skillActiveLabel");
+    } else {
+      statusEl.classList.add("ready");
+      statusEl.innerHTML = t("skillReadyM");
+    }
+  } else if (id === "laser") {
+    if (laserUsed) {
+      statusEl.classList.add("used");
+      statusEl.innerHTML = t("skillUsedShort");
+    } else {
+      statusEl.classList.add("ready");
+      statusEl.innerHTML = t("skillReadyF");
+    }
+  } else if (id) {
+    statusEl.innerHTML = t("skillPassive");
+    statusEl.style.opacity = "0.6";
+  } else {
+    statusEl.innerHTML = "";
+  }
+}
+
+/* ============ Input ============ */
+document.addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  if (k === "escape") {
+    if (shopBackdrop.classList.contains("show"))    { closeShop();    return; }
+    if (recordsBackdrop.classList.contains("show")) { closeRecords(); return; }
+    if (wishBackdrop.classList.contains("show"))    { closeWish();    return; }
+  }
+  if (k === " " || k === "spacebar") {
+    e.preventDefault();
+    if (state === "playing") {
+      if (balls.some(b => b.stuck)) { tryStartLaunch(); return; }
+      showPauseMenu();
+    } else if (state === "menu" && overlay.classList.contains("show")) {
+      const primary = overlay.querySelector("button.btn:not(.secondary)");
+      if (primary) primary.click();
+    }
+    return;
+  }
+  if (state !== "playing") return;
+  if (k === "arrowleft"  || k === "a") INPUT.left = true;
+  if (k === "arrowright" || k === "d") INPUT.right = true;
+
+  if (k === "m") triggerMultiball();
+  if (k === "f") triggerLaser();
+});
+
+function triggerMultiball() {
+  if (state !== "playing" || launchTimer) return;
+  if (STORE.skill !== "multiball" || !STORE.up.multiball) return;
+  if (multiballActive) return toast(t("multiballUsed"));
+  multiballActive = true;
+  spawnMultiball();
+  toast(t("multiballActive"));
+}
+
+function triggerLaser() {
+  if (state !== "playing" || launchTimer) return;
+  /* During boss fight, F prefers the wall-charge laser if available */
+  if (boss && laserCharges > 0) {
+    laserCharges--;
+    const now = performance.now();
+    const x = paddleX + paddleW / 2;
+    laserBeams.push({ x, time: now });
+    if (x > boss.x && x < boss.x + boss.w) {
+      laserHits.push({ x, y: boss.y + boss.h / 2, time: now });
+    }
+    damageBoss(CHARGE_LASER_DAMAGE);
+    SFX.laser();
+    shake(8, 250);
+    toast(t("chargeFired", { n: CHARGE_LASER_DAMAGE }));
+    updateBossEnergyUI();
+    return;
+  }
+  /* Otherwise use the wish-only Laser skill if equipped — 1× per run */
+  if (STORE.skill !== "laser" || !STORE.up.laser) return;
+  if (laserUsed) return toast(t("laserUsedToast"));
+  laserUsed = true;
+  const now = performance.now();
+  const positions = [0.1, 0.3, 0.5, 0.7, 0.9];
+  for (const p of positions) {
+    const x = paddleX + paddleW * p;
+    laserBeams.push({ x, time: now });
+    if (boss && x > boss.x && x < boss.x + boss.w) {
+      laserHits.push({ x, y: boss.y + boss.h / 2, time: now });
+      damageBoss(3);
+      if (!boss) break;
+    }
+    const bw = BRICK_W - BRICK_GAP;
+    for (const brick of bricks) {
+      if (!brick.alive) continue;
+      if (x > brick.x && x < brick.x + bw) {
+        brick.alive = false;
+        score++;
+        WALLET.coins += 1;
+        laserHits.push({ x: brick.x + bw / 2, y: brick.y + BRICK_H / 2, time: now });
+      }
+    }
+  }
+  scoreEl.textContent = score;
+  if (score > best) { best = score; localStorage.setItem("brick.best", best); bestEl.textContent = best; }
+  SFX.laser();
+  shake(10, 300);
+  toast(t("laserFired"));
+  const flash = document.createElement("div");
+  flash.className = "screenFlash";
+  document.body.appendChild(flash);
+  setTimeout(() => flash.remove(), 600);
+}
+
+function updateBossEnergyUI() {
+  const wrap = document.getElementById("bossEnergy");
+  if (!wrap) return;
+  if (boss) {
+    wrap.style.display = "block";
+    document.getElementById("bossEnergyVal").textContent = wallHitCount;
+    document.getElementById("bossEnergyMax").textContent = WALL_HITS_PER_CHARGE;
+    document.getElementById("bossLaserCount").textContent = laserCharges;
+    document.getElementById("bossEnergyFill").style.width =
+      ((wallHitCount / WALL_HITS_PER_CHARGE) * 100).toFixed(1) + "%";
+    document.getElementById("bossEnergyHint").style.display = laserCharges > 0 ? "inline" : "none";
+  } else {
+    wrap.style.display = "none";
+  }
+}
+
+/* Called from step() each time the ball destroys a brick */
+function registerBrickHit() {
+  wallHitCount++;
+  if (wallHitCount >= WALL_HITS_PER_CHARGE) {
+    wallHitCount -= WALL_HITS_PER_CHARGE;
+    laserCharges++;
+    /* Only chime + hint during boss fights — silent in normal levels */
+    if (boss) {
+      SFX.chargeReady();
+      toast(t("chargeReady"));
+    }
+  }
+  updateBossEnergyUI();
+}
+
+/* Bind mobile skill buttons to the same triggers (with active-press fallback) */
+function bindMobileBtn(el, fn) {
+  if (!el) return;
+  const handle = e => { e.preventDefault(); fn(); };
+  el.addEventListener("click",      handle);
+  el.addEventListener("touchstart", handle, { passive: false });
+}
+bindMobileBtn(document.getElementById("skillBtnM"), triggerMultiball);
+bindMobileBtn(document.getElementById("skillBtnF"), triggerLaser);
+
+function refreshMobileSkillBtns() {
+  const mBtn = document.getElementById("skillBtnM");
+  const fBtn = document.getElementById("skillBtnF");
+  const sk = STORE.skill;
+  const showM = sk === "multiball" && STORE.up.multiball;
+  const skillLaserShown = sk === "laser" && STORE.up.laser;
+  const bossLaserShown  = boss && laserCharges > 0;
+  const showF = skillLaserShown || bossLaserShown;
+  mBtn.classList.toggle("show", showM);
+  fBtn.classList.toggle("show", showF);
+  mBtn.classList.toggle("locked", multiballActive);
+  /* Skill laser is 1× per run; boss-charge laser is always available when shown */
+  fBtn.classList.toggle("locked", !bossLaserShown && laserUsed);
+}
+
+document.addEventListener("keyup", e => {
+  const k = e.key.toLowerCase();
+  if (k === "arrowleft"  || k === "a") INPUT.left = false;
+  if (k === "arrowright" || k === "d") INPUT.right = false;
+});
+
+canvas.addEventListener("mousemove", e => {
+  const rect = canvas.getBoundingClientRect();
+  INPUT.mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+});
+canvas.addEventListener("mouseleave", () => { INPUT.mouseX = null; });
+canvas.addEventListener("click", () => {
+  if (state === "playing" && balls.some(b => b.stuck)) tryStartLaunch();
+});
+
+/* Touch support (mobile) */
+function touchToCanvasX(touch) {
+  const rect = canvas.getBoundingClientRect();
+  return (touch.clientX - rect.left) * (canvas.width / rect.width);
+}
+canvas.addEventListener("touchstart", e => {
+  e.preventDefault();
+  if (e.touches[0]) INPUT.mouseX = touchToCanvasX(e.touches[0]);
+  if (state === "playing" && balls.some(b => b.stuck)) tryStartLaunch();
+}, { passive: false });
+canvas.addEventListener("touchmove", e => {
+  e.preventDefault();
+  if (e.touches[0]) INPUT.mouseX = touchToCanvasX(e.touches[0]);
+}, { passive: false });
+
+/* ============ Boot ============ */
+if (!SKINS.find(s => s.id === STORE.skin)) STORE.skin = "classic";
+applyLang();
+resetGame();
+updateSkillCorner();
+refreshHUD();
+showStartMenu();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,2298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snake</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🐍</text></svg>'>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #1e1e24;
+    color: #f1f1f1;
+    font-family: 'Trebuchet MS', Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+
+  h1 {
+    font-size: 32px;
+    margin: 10px 0 16px;
+    letter-spacing: 2px;
+    color: #a5d6a7;
+  }
+
+  .hud {
+    display: flex;
+    gap: 18px;
+    font-size: 15px;
+    margin-bottom: 14px;
+    background: rgba(255,255,255,0.05);
+    padding: 10px 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .hud span b { color: #a5d6a7; font-weight: bold; }
+  .hud .coin b { color: #ffd54f; }
+  .hud .gem  b { color: #4dd0e1; }
+  .hud .livesBox b {
+    color: #ef5350;
+    font-size: 22px;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(239,83,80,0.5);
+  }
+
+  .stage { position: relative; }
+
+  canvas {
+    background: #14141a;
+    border: 2px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    display: block;
+  }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(20,20,26,0.92);
+    border-radius: 10px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+    padding: 20px;
+  }
+  .overlay.show { display: flex; }
+  .overlay h2 { margin: 0; font-size: 26px; color: #a5d6a7; }
+  .overlay p { margin: 0; opacity: 0.85; font-size: 14px; line-height: 1.6; }
+  .overlay .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+  .btn {
+    background: #a5d6a7;
+    color: #14141a;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.12s, background 0.15s;
+  }
+  .btn:hover { background: #c5e1c8; transform: scale(1.04); }
+  .btn.secondary {
+    background: rgba(255,255,255,0.08);
+    color: #f1f1f1;
+    border: 1px solid rgba(255,255,255,0.18);
+  }
+  .btn.secondary:hover { background: rgba(255,255,255,0.18); }
+
+  /* SHOP — Gacha Flyer style */
+  .shopBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+    padding: 20px;
+  }
+  .shopBackdrop.show { display: flex; }
+  .shopPopup {
+    background: rgba(0,0,0,0.95);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 20px 26px;
+    width: 100%;
+    max-width: 460px;
+    max-height: 90vh;
+    overflow-y: auto;
+    color: white;
+    position: relative;
+  }
+  .closeX {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: rgba(255,255,255,0.08);
+    border: none;
+    color: #f1f1f1;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .closeX:hover { background: rgba(255,255,255,0.18); }
+  .shopHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .shopHeader h3 { margin: 0; font-size: 22px; }
+  .shopBalance {
+    background: linear-gradient(90deg, #ffcc00, #ffaa00);
+    color: #333;
+    padding: 5px 12px;
+    border-radius: 16px;
+    font-weight: bold;
+    font-size: 14px;
+  }
+  .shopBalance.gem {
+    background: linear-gradient(90deg, #4dd0e1, #00bcd4);
+    color: #fff;
+    margin-left: 6px;
+  }
+  .shopTabs {
+    display: flex;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 12px;
+  }
+  .shopTabs .tab {
+    padding: 8px 18px;
+    background: transparent;
+    border: none;
+    color: #aaa;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .shopTabs .tab:hover { color: white; }
+  .shopTabs .tab.active {
+    color: #ffcc00;
+    border-bottom-color: #ffcc00;
+  }
+  .shopGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .gCard {
+    background: #1f1f1f;
+    border: 2px solid #333;
+    border-radius: 10px;
+    padding: 10px 6px 8px;
+    cursor: pointer;
+    transition: transform 0.12s, background 0.12s, border-color 0.12s;
+    text-align: center;
+    color: white;
+  }
+  .gCard:hover { background: #2a2a2a; transform: translateY(-2px); }
+  .gCard.selected {
+    border-color: #ffcc00;
+    background: #2a2618;
+    box-shadow: 0 0 10px rgba(255,204,0,0.35);
+  }
+  .gCard.locked { opacity: 0.7; border-style: dashed; }
+  .gCard.gemOnly {
+    border-color: #4dd0e1;
+    background: linear-gradient(135deg, #1a2a30 0%, #1a1a1a 70%);
+    box-shadow: 0 0 12px rgba(77, 208, 225, 0.35);
+  }
+  .gCard.gemOnly.selected { box-shadow: 0 0 18px rgba(77, 208, 225, 0.75); }
+  .gCard .icon { font-size: 28px; line-height: 1; margin-bottom: 4px; }
+  .gCard .skinSwatch { height: 22px; margin: 4px 4px 6px; border-radius: 4px; }
+  .gCard .name { font-size: 13px; font-weight: bold; line-height: 1.1; }
+  .gCard .desc { font-size: 11px; color: #cfd8dc; margin: 5px 2px 8px; min-height: 32px; line-height: 1.3; }
+  .gCard .status { font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 10px; display: inline-block; }
+  .status-equipped { background: #ffcc00; color: #333; }
+  .status-equip    { background: rgba(255,255,255,0.12); color: white; }
+  .status-locked   { background: #2a2a2a; color: #ffcc00; border: 1px solid #444; }
+  .status-locked-gem { background: #1a2a30; color: #4dd0e1; border: 1px solid #2a4a55; }
+
+  .hint {
+    margin-top: 16px;
+    font-size: 13px;
+    opacity: 0.55;
+    text-align: center;
+  }
+
+  /* Corner button clusters — matches Gacha Flyer exactly */
+  #coinCorner {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 100;
+    user-select: none;
+    text-align: center;
+  }
+  #coinCorner .coinPill,
+  #coinCorner .diamondPill {
+    color: #333;
+    font-weight: bold;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    display: inline-block;
+  }
+  #coinCorner .coinPill { background: linear-gradient(90deg, #ffcc00, #ffaa00); }
+  #coinCorner .diamondPill {
+    background: linear-gradient(90deg, #4dd0e1, #1e88e5);
+    color: white;
+    margin-top: 6px;
+  }
+  #coinCorner .cornerButtons {
+    margin-top: 10px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+  }
+  /* Records cluster on the left */
+  .cornerButtons.left {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    display: flex;
+    gap: 14px;
+    z-index: 100;
+  }
+  .cornerBtn { text-align: center; }
+  .cornerIcon {
+    background: #2c3e50;
+    color: white;
+    border: 2px solid #ffcc00;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 0 12px rgba(255,204,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cornerIcon:hover { transform: scale(1.08); box-shadow: 0 0 20px rgba(255,204,0,0.7); }
+  .cornerIcon.records { border-color: #4dd0e1; box-shadow: 0 0 12px rgba(77,208,225,0.4); }
+  .cornerIcon.records:hover { box-shadow: 0 0 20px rgba(77,208,225,0.7); }
+  .cornerIcon.wish {
+    border-color: #ce93d8;
+    box-shadow: 0 0 12px rgba(206,147,216,0.5);
+    animation: wishPulse 2.4s ease-in-out infinite;
+  }
+  .cornerIcon.wish:hover { box-shadow: 0 0 22px rgba(206,147,216,0.9); animation: none; }
+  @keyframes wishPulse {
+    0%, 100% { box-shadow: 0 0 12px rgba(206,147,216,0.5); }
+    50%      { box-shadow: 0 0 22px rgba(206,147,216,0.9); }
+  }
+
+  /* Wish modal */
+  .wishContent { text-align: center; padding: 8px 0; }
+  .wishBalance {
+    font-size: 13px;
+    margin: 6px 0 10px;
+    color: #4dd0e1;
+    font-weight: bold;
+    opacity: 0.85;
+  }
+  .wishCost {
+    text-align: center;
+    font-size: 14px;
+    opacity: 0.8;
+    margin-bottom: 12px;
+  }
+  .wishRatesBlock {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .tradeBox {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 10px 14px;
+    text-align: center;
+  }
+  .tradeInfo { font-size: 13px; margin-bottom: 8px; }
+  .tradeInfo b { color: #ffd54f; }
+  .tradeBox input[type="range"] {
+    width: 100%;
+    accent-color: #ffaa00;
+  }
+  .tradeBtn {
+    background: linear-gradient(90deg, #ffaa00, #1e88e5);
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 6px;
+  }
+  .tradeBtn:hover { filter: brightness(1.1); }
+
+  /* Reveal stars */
+  #wishStars {
+    font-size: 32px;
+    text-align: center;
+    margin: 10px 0;
+    letter-spacing: 4px;
+  }
+  #wishStars.star3 { color: #90caf9; }
+  #wishStars.star4 { color: #ce93d8; text-shadow: 0 0 16px rgba(206,147,216,0.6); }
+  #wishStars.star5 {
+    background: linear-gradient(90deg, #ffd54f, #ff7043, #ffd54f);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-size: 200% 100%;
+    animation: shine 2s linear infinite;
+    text-shadow: 0 0 24px rgba(255,213,79,0.9);
+  }
+  #wishItem {
+    font-size: 56px;
+    text-align: center;
+    margin: 6px 0;
+  }
+  #wishMessage {
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 8px 0;
+  }
+  .reveal-anim { animation: wishPop 0.5s ease; }
+
+  /* 10× pull grid */
+  .wishGrid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin: 10px 0;
+  }
+  .wishGridItem {
+    background: #1f1f1f;
+    border: 2px solid #333;
+    border-radius: 8px;
+    padding: 6px 2px;
+    text-align: center;
+  }
+  .wishGridItem.s3 { border-color: #5f6c70; }
+  .wishGridItem.s4 { border-color: #ce93d8; box-shadow: 0 0 8px rgba(206,147,216,0.4); }
+  .wishGridItem.s5 { border-color: #ffd54f; box-shadow: 0 0 12px rgba(255,213,79,0.6); }
+  .wishGridIcon { font-size: 22px; line-height: 1; }
+  .wishGridName { font-size: 10px; opacity: 0.85; margin-top: 2px; }
+  .wishGridStars { font-size: 10px; margin-top: 2px; letter-spacing: 1px; }
+  .wishGridStars.star3 { color: #90caf9; }
+  .wishGridStars.star4 { color: #ce93d8; }
+  .wishGridStars.star5 { color: #ffd54f; }
+
+  /* 5★ burst (flying stars) */
+  .fiveStarBurst {
+    position: fixed;
+    top: 50%; left: 50%;
+    pointer-events: none;
+    z-index: 10000;
+  }
+  .fiveStarBurst span {
+    position: absolute;
+    font-size: 24px;
+    color: #ffd54f;
+    text-shadow: 0 0 12px rgba(255,213,79,0.9);
+    animation: burstFly 1.4s ease-out forwards;
+  }
+  @keyframes burstFly {
+    0%   { transform: translate(-50%, -50%) scale(0.4) rotate(0deg); opacity: 1; }
+    80%  { opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(1.2) rotate(360deg); opacity: 0; }
+  }
+
+  /* 5★ screen flash */
+  .screenFlash {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255,213,79,0.85) 0%, rgba(255,213,79,0) 70%);
+    z-index: 9999;
+    pointer-events: none;
+    animation: flashFade 0.7s ease-out forwards;
+  }
+  @keyframes flashFade {
+    0%   { opacity: 0; transform: scale(0.4); }
+    30%  { opacity: 1; transform: scale(1.1); }
+    100% { opacity: 0; transform: scale(1.4); }
+  }
+  .wishBtn {
+    background: linear-gradient(90deg, #ce93d8, #7b1fa2);
+    color: white;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.15s;
+    box-shadow: 0 0 14px rgba(206,147,216,0.4);
+  }
+  .wishBtn:hover { transform: scale(1.05); box-shadow: 0 0 22px rgba(206,147,216,0.8); }
+  .wishBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .wishBtn.purple { background: linear-gradient(90deg, #ce93d8, #7b1fa2); color: white; }
+  .wishButtonRow {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: nowrap;
+    margin: 4px 0 6px;
+  }
+  .wishButtonRow .wishBtn {
+    flex: 1;
+    padding: 12px 8px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .wishHint { font-size: 12px; opacity: 0.6; margin-top: 10px; }
+
+  .wishReveal {
+    margin-top: 16px;
+    padding: 16px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 2px solid rgba(255,255,255,0.08);
+    animation: wishPop 0.5s ease;
+  }
+  @keyframes wishPop {
+    0%   { transform: scale(0.7); opacity: 0; }
+    60%  { transform: scale(1.06); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  .wishReveal.r3 { border-color: #90caf9; box-shadow: 0 0 20px rgba(144,202,249,0.4); }
+  .wishReveal.r4 { border-color: #ce93d8; box-shadow: 0 0 26px rgba(206,147,216,0.6); }
+  .wishReveal.r5 {
+    border-color: #ffd54f;
+    box-shadow: 0 0 36px rgba(255,213,79,0.9);
+    background: linear-gradient(135deg, #2a2418, #1a1a1a);
+  }
+  .wishSwatch {
+    width: 80px; height: 36px;
+    margin: 0 auto 10px;
+    border-radius: 6px;
+  }
+  .wishName { font-size: 20px; font-weight: bold; margin-bottom: 4px; }
+  .wishName.r3 { color: #90caf9; }
+  .wishName.r4 { color: #ce93d8; }
+  .wishName.r5 {
+    background: linear-gradient(90deg, #ffd54f, #ff7043, #ffd54f);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-size: 200% 100%;
+    animation: shine 2s linear infinite;
+  }
+  @keyframes shine {
+    0%   { background-position: 0% 0%; }
+    100% { background-position: 200% 0%; }
+  }
+  .wishStars { font-size: 16px; color: #ffd54f; margin-bottom: 8px; }
+  .wishStatus { font-size: 13px; opacity: 0.85; }
+  .iconLabel {
+    font-size: 12px;
+    color: white;
+    margin-top: 4px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+
+  /* Equipped-skill summary panel (top-left, under the Records button) */
+  #skillCorner {
+    position: fixed;
+    top: 92px;
+    left: 14px;
+    background: rgba(0,0,0,0.78);
+    padding: 8px 12px;
+    border-radius: 10px;
+    max-width: 200px;
+    text-align: left;
+    border-left: 3px solid #ffcc00;
+    z-index: 100;
+    display: none;
+  }
+  #skillCorner.show { display: block; }
+  .skillCornerName {
+    font-weight: bold;
+    font-size: 14px;
+    color: #ffcc00;
+  }
+  .skillCornerDesc {
+    font-size: 11.5px;
+    color: #cfd8dc;
+    margin-top: 3px;
+    line-height: 1.3;
+  }
+  .skillCornerStatus {
+    font-size: 12px;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    min-height: 14px;
+  }
+  .skillCornerStatus.active {
+    color: #ffd54f;
+    font-weight: bold;
+    text-shadow: 0 0 8px rgba(255,213,79,0.6);
+  }
+  .skillCornerStatus.cooldown {
+    color: #90caf9;
+  }
+  .skillCornerStatus.ready {
+    color: #a5d6a7;
+  }
+  .skillCornerStatus.used {
+    color: #999;
+    text-decoration: line-through;
+  }
+
+  /* Records list */
+  .recordRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+  }
+  .recordRow.me { border-color: #ffcc00; background: rgba(255,204,0,0.08); }
+  .recordRow .rank {
+    width: 28px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 16px;
+    color: #ffcc00;
+  }
+  .recordRow .name { flex: 1; font-size: 14px; font-weight: bold; }
+  .recordRow .score { font-size: 14px; color: #a5d6a7; font-weight: bold; }
+  .recordRow .date { font-size: 11px; opacity: 0.5; margin-left: 8px; }
+  .emptyRecords {
+    text-align: center;
+    padding: 30px 10px;
+    opacity: 0.5;
+    font-size: 14px;
+  }
+  .recordsSection {
+    margin: 12px 0 4px;
+    color: #ffcc00;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  .recRow {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 2px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-size: 14px;
+  }
+  .recRow b { color: #a5d6a7; }
+
+  .backBtn {
+    position: fixed;
+    bottom: 14px;
+    left: 14px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: white;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 14px;
+    text-decoration: none;
+    z-index: 1000;
+    transition: background 0.15s;
+  }
+  .backBtn:hover { background: rgba(255,255,255,0.18); }
+
+  .toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20,20,26,0.95);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #f1f1f1;
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 2000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 8px); }
+
+  /* Mobile skill buttons */
+  .skillButtons {
+    position: fixed;
+    bottom: 80px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 50;
+  }
+  .mobileBtn {
+    width: 58px; height: 58px;
+    border-radius: 50%;
+    background: rgba(20,20,26,0.85);
+    color: white;
+    border: 2px solid #ffcc00;
+    font-size: 26px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    box-shadow: 0 0 14px rgba(255,204,0,0.5);
+    transition: transform 0.1s;
+  }
+  .mobileBtn.show   { display: flex; }
+  .mobileBtn:active { transform: scale(0.92); background: rgba(60,60,66,0.95); }
+  .mobileBtn.locked { opacity: 0.45; cursor: not-allowed; }
+  #skillBtnI { border-color: #ffd54f; box-shadow: 0 0 14px rgba(255,213,79,0.6); }
+  #skillBtnQ { border-color: #ff5252; box-shadow: 0 0 14px rgba(255,82,82,0.6); }
+
+  /* Auto-pause overlay */
+  .pauseOverlay {
+    position: absolute; inset: 0;
+    border-radius: 10px;
+    background: rgba(20,20,26,0.55);
+    align-items: center; justify-content: center;
+    pointer-events: none;
+    z-index: 5;
+    display: none;
+  }
+  .pauseOverlay.show { display: flex; }
+  .pauseOverlay .label {
+    font-size: 38px; font-weight: bold; letter-spacing: 4px;
+    color: white; text-shadow: 0 0 12px rgba(0,0,0,0.6);
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 500px) {
+    body { padding: 10px; }
+    h1 { font-size: 22px; margin: 4px 0 8px; }
+    .hud { font-size: 13px; padding: 8px 12px; gap: 10px; }
+    canvas { max-width: calc(100vw - 24px); height: auto; touch-action: none; }
+    .stage { width: 100%; max-width: 400px; }
+    .cornerIcon { width: 42px; height: 42px; font-size: 18px; }
+    .iconLabel { font-size: 11px; }
+    .shopPopup { padding: 16px 18px; }
+    #coinCorner .coinPill, #coinCorner .diamondPill { font-size: 14px; padding: 6px 10px; }
+    #skillCorner { top: 78px; max-width: 150px; padding: 6px 8px; }
+    .skillCornerName { font-size: 12px; }
+    .skillCornerDesc { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<a class="backBtn" href="../index.html" data-i18n="back">← Back to Hub</a>
+<div id="toast" class="toast"></div>
+
+<!-- Records at top-left -->
+<div class="cornerButtons left">
+  <div class="cornerBtn">
+    <button class="cornerIcon records" onclick="openRecords()" title="Records">📊</button>
+    <div class="iconLabel">Records</div>
+  </div>
+</div>
+
+<!-- Top-right cluster: coins + diamonds + Shop + Wish (matches Gacha Flyer) -->
+<div id="coinCorner">
+  <div class="coinPill">💰 <span id="coinCount">0</span></div>
+  <div class="diamondPill">💎 <span id="diamondCount">0</span></div>
+  <div class="cornerButtons">
+    <div class="cornerBtn">
+      <button class="cornerIcon" onclick="openShop()" title="Shop">🛒</button>
+      <div class="iconLabel" data-i18n="shop">Shop</div>
+    </div>
+    <div class="cornerBtn">
+      <button class="cornerIcon wish" onclick="openWish()" title="Wish">✨</button>
+      <div class="iconLabel" data-i18n="wish">Wish</div>
+    </div>
+  </div>
+</div>
+
+<!-- Equipped skill summary -->
+<div id="skillCorner">
+  <div class="skillCornerName" id="skillCornerName"></div>
+  <div class="skillCornerDesc" id="skillCornerDesc"></div>
+  <div class="skillCornerStatus" id="skillCornerStatus"></div>
+</div>
+
+<h1 data-i18n="pageTitle">SNAKE</h1>
+
+<div class="hud">
+  <span><span data-i18n="score">Score</span> <b id="score">0</b></span>
+  <span class="livesBox"><b id="lives">❤❤❤</b></span>
+  <span><span data-i18n="best">Best</span> <b id="best">0</b></span>
+  <span>⚡ <b id="speed">1.00x</b></span>
+  <span>⏱ <b id="playTime">00:00</b></span>
+</div>
+
+<div class="stage">
+  <canvas id="game" width="400" height="400"></canvas>
+  <div id="overlay" class="overlay"></div>
+  <div id="pauseOverlay" class="pauseOverlay"><div class="label">⏸ PAUSED</div></div>
+</div>
+
+<!-- Mobile / always-visible skill buttons -->
+<div class="skillButtons">
+  <button id="skillBtnI" class="mobileBtn" type="button">🦾</button>
+  <button id="skillBtnQ" class="mobileBtn" type="button">💥</button>
+</div>
+
+<div class="hint" data-i18n="hint">Space = pause · Apples give 💰 · 3% chance of 💎 per apple</div>
+
+<!-- WISH POPUP -->
+<div id="wishBackdrop" class="shopBackdrop">
+  <div class="shopPopup" onclick="event.stopPropagation()">
+    <button class="closeX" onclick="closeWish()">✕</button>
+    <div class="shopHeader">
+      <h3 data-i18n="makeWish">✨ Make a Wish</h3>
+      <span class="shopBalance gem">💎 <span id="wishGemsHeader">0</span></span>
+    </div>
+    <div class="wishCost" data-i18n="wishCost">Cost: 1 💎 per wish</div>
+
+    <!-- First-time free wish -->
+    <div id="firstWishStage" style="display:none; text-align:center;">
+      <p style="font-size:15px; margin: 10px 0" data-i18n="welcomeGift">🎁 Welcome gift! Claim your <b style="color:#ce93d8">guaranteed ★★★★</b> wish:</p>
+      <button class="wishBtn" onclick="claimFirstWish()" data-i18n="claimFreeWish" style="background:linear-gradient(90deg,#ce93d8,#7b1fa2);color:white">🎁 Claim Free 4★ Wish</button>
+    </div>
+
+    <!-- Wish stage (buttons + rates) -->
+    <div id="wishStage">
+      <div class="wishRatesBlock">
+        <div data-i18n="rate5">★★★★★ <span style="color:#ffd54f">1%</span> — guaranteed at 70</div>
+        <div data-i18n="rate4">★★★★ <span style="color:#ce93d8">7%</span> — guaranteed at 20</div>
+        <div data-i18n="rate3">★★★ <span style="color:#90caf9">92%</span> — coins</div>
+        <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); font-size:12px" data-i18n="pityLine">
+          Pity: ★★★★★ <b id="pity5Display" style="color:#ffd54f">0</b>/70 · ★★★★ <b id="pity4Display" style="color:#ce93d8">0</b>/20<br><span style="opacity:0.7; font-size:11px">10× pull guarantees at least one ★★★★</span>
+        </div>
+      </div>
+      <div class="wishButtonRow">
+        <button id="wishGoBtn" class="wishBtn" onclick="makeWish()" data-i18n="wish1Btn">✨ Wish (1 💎)</button>
+        <button id="wishTenBtn" class="wishBtn purple" onclick="makeTenWish()" data-i18n="wish10Btn">✨✨ Wish 10× (10 💎)</button>
+      </div>
+
+      <hr style="margin:14px 0 10px; border:none; border-top:1px solid rgba(255,255,255,0.12)">
+      <div style="font-size:12px; opacity:0.7; margin-bottom:6px" data-i18n="outOfDiamonds">Out of diamonds?</div>
+      <div class="tradeBox">
+        <div class="tradeInfo" data-i18n="tradeInfo">Trade <b id="tradeQty">1</b> 💎 — cost <b id="tradeCost">400</b> 💰</div>
+        <input type="range" id="tradeSlider" min="1" max="1" value="1" oninput="updateTradeUI()">
+        <button class="tradeBtn" onclick="executeTrade()" data-i18n="tradeBtn">💱 Trade</button>
+      </div>
+    </div>
+
+    <!-- Result stage -->
+    <div id="wishResult" style="display:none">
+      <div id="wishStars"></div>
+      <div id="wishItem"></div>
+      <div id="wishMessage"></div>
+      <button class="wishBtn" onclick="resetWishStage()" style="margin-top:10px" data-i18n="wishAgain">Wish again</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECORDS POPUP -->
+<div id="recordsBackdrop" class="shopBackdrop">
+  <div class="shopPopup" onclick="event.stopPropagation()">
+    <button class="closeX" onclick="closeRecords()">✕</button>
+    <div class="shopHeader">
+      <h3 data-i18n="recordsTitle">📊 Records</h3>
+    </div>
+    <div id="recordsList"></div>
+  </div>
+</div>
+
+<!-- SHOP POPUP (Gacha-style) -->
+<div id="shopBackdrop" class="shopBackdrop">
+  <div class="shopPopup" onclick="event.stopPropagation()">
+    <button class="closeX" onclick="closeShop()">✕</button>
+    <div class="shopHeader">
+      <h3 data-i18n="shopTitle">🛒 Shop</h3>
+      <div>
+        <span class="shopBalance">💰 <span id="shopCoins">0</span></span>
+        <span class="shopBalance gem">💎 <span id="shopGems">0</span></span>
+      </div>
+    </div>
+    <div class="shopTabs">
+      <button class="tab active" data-tab="skins"    onclick="switchShopTab('skins')"   data-i18n="tabSkins">🎨 Skins</button>
+      <button class="tab"        data-tab="upgrades" onclick="switchShopTab('upgrades')" data-i18n="tabSkills">⚡ Skills</button>
+    </div>
+    <div class="shopGrid" id="skinGrid"></div>
+    <div class="shopGrid" id="upgradeGrid" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+/* ============ Audio (Web Audio API — reads flappyVolume 0-100) ============ */
+const audioCtx = (window.AudioContext || window.webkitAudioContext)
+  ? new (window.AudioContext || window.webkitAudioContext)() : null;
+function volume01() { return Math.max(0, Math.min(100, parseInt(localStorage.getItem("flappyVolume") || "50", 10))) / 100; }
+function playTone(freq, dur, type = "square", baseVol = 0.1) {
+  if (!audioCtx) return;
+  const v = baseVol * volume01();
+  if (v <= 0) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type; osc.frequency.value = freq;
+    g.gain.value = v;
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + dur);
+  } catch {}
+}
+const SFX = {
+  eat:       () => { playTone(660, 0.06, "square", 0.10); setTimeout(() => playTone(880, 0.06, "square", 0.10), 40); },
+  gem:       () => { playTone(1200, 0.05, "sine", 0.12); setTimeout(() => playTone(1600, 0.08, "sine", 0.10), 40); },
+  hit:       () => playTone(120, 0.20, "sawtooth", 0.18),
+  gameOver:  () => { [330, 220, 150].forEach((f, i) => setTimeout(() => playTone(f, 0.18, "sawtooth", 0.15), i * 100)); },
+  pause:     () => playTone(440, 0.06, "sine", 0.10),
+  start:     () => { [440, 660].forEach((f, i) => setTimeout(() => playTone(f, 0.08, "square", 0.12), i * 70)); },
+  skill:     () => { playTone(800, 0.06, "square", 0.14); setTimeout(() => playTone(1200, 0.08, "sine", 0.12), 50); },
+  coin:      () => { playTone(880, 0.04, "sine", 0.10); setTimeout(() => playTone(1100, 0.06, "sine", 0.10), 30); },
+  wish:      () => { playTone(880, 0.06, "sine", 0.12); setTimeout(() => playTone(1320, 0.08, "sine", 0.12), 60); },
+  wish10:    () => { [660, 880, 1100, 1320].forEach((f, i) => setTimeout(() => playTone(f, 0.10, "sine", 0.14), i * 70)); },
+  rare4:     () => { [880, 1200, 1600].forEach((f, i) => setTimeout(() => playTone(f, 0.14, "triangle", 0.16), i * 90)); },
+  rare5:     () => { [523, 784, 1047, 1318, 1568].forEach((f, i) => setTimeout(() => playTone(f, 0.18, "sine", 0.20), i * 110)); }
+};
+
+/* ============ Shared wallet (synced with Gacha Flyer) ============ */
+const WALLET = {
+  get coins()    { return parseInt(localStorage.getItem("flappyCoins")    || "0", 10); },
+  set coins(v)   { localStorage.setItem("flappyCoins",    Math.max(0, v|0)); refreshHUD(); },
+  get diamonds() { return parseInt(localStorage.getItem("flappyDiamonds") || "0", 10); },
+  set diamonds(v){ localStorage.setItem("flappyDiamonds", Math.max(0, v|0)); refreshHUD(); }
+};
+
+/* ============ i18n ============ */
+const I18N = {
+  en: {
+    pageTitle: "SNAKE",
+    score: "Score", best: "Best",
+    hint: "Space = pause · Apples give 💰 · 3% chance of 💎 per apple",
+    back: "← Back to Hub",
+    shop: "Shop", records: "Records", wish: "Wish",
+
+    menuReady: "Ready?",
+    menuReadyText: "Use <b>Arrow keys</b> or <b>WASD</b> to move.<br>Eat apples, dodge walls and yourself.",
+    btnStart: "▶ Start",
+    menuPaused: "Paused",
+    menuPausedText: "Take a breath.",
+    btnResume: "▶ Resume",
+    menuGameOver: "Game Over",
+    btnPlayAgain: "▶ Play Again",
+    finalScoreLine: "Final score: <b>{score}</b> · Best: <b>{best}</b><br>Earned: 💰 {coins}{diamonds}",
+
+    shopTitle: "🛒 Shop",
+    tabSkins: "🎨 Skins", tabSkills: "⚡ Skills", tabWish: "✨ Wish",
+    statusEquipped: "✓ EQUIPPED",
+    statusEquip: "Tap to Equip",
+    statusWishOnly: "✨ Wish only",
+
+    recordsTitle: "📊 Records",
+    recordsEmpty: "No records yet.<br>Play a game to set the first!",
+    topRuns: "🏆 Top 5",
+    currentBalance: "💼 Current Balance",
+    coinsNow: "💰 Coins now",
+    diamondsNow: "💎 Diamonds now",
+    lifetimeTotals: "📈 Lifetime Totals",
+    gamesPlayed: "🎮 Games played",
+    totalCoinsEarned: "💰 Total coins earned",
+    totalDiamondsEarned: "💎 Total diamonds earned",
+    longestSnake: "🐍 Longest snake",
+
+    makeWish: "✨ Make a Wish",
+    wishCost: "Cost: 1 💎 per wish",
+    welcomeGift: "🎁 Welcome gift! Claim your <b style=\"color:#ce93d8\">guaranteed ★★★★</b> wish:",
+    claimFreeWish: "🎁 Claim Free 4★ Wish",
+    rate5: "★★★★★ <span style=\"color:#ffd54f\">1%</span> — guaranteed at 70",
+    rate4: "★★★★ <span style=\"color:#ce93d8\">7%</span> — guaranteed at 20",
+    rate3: "★★★ <span style=\"color:#90caf9\">92%</span> — coins",
+    pityLine: "Pity: ★★★★★ <b id=\"pity5Display\" style=\"color:#ffd54f\">0</b>/70 · ★★★★ <b id=\"pity4Display\" style=\"color:#ce93d8\">0</b>/20<br><span style=\"opacity:0.7; font-size:11px\">10× pull guarantees at least one ★★★★</span>",
+    wish1Btn: "✨ Wish (1 💎)",
+    wish10Btn: "✨✨ Wish 10× (10 💎)",
+    outOfDiamonds: "Out of diamonds?",
+    tradeInfo: "Trade <b id=\"tradeQty\">1</b> 💎 — cost <b id=\"tradeCost\">400</b> 💰",
+    tradeBtn: "💱 Trade",
+    wishAgain: "Wish again",
+    tenPullSum: "+{n} 💰 from this pull",
+    newSkin: "NEW skin unlocked!",
+    newSkill: "NEW skill unlocked!",
+    coinReward: "+{n} coins",
+    alreadyOwned: "Already owned — +{n} 💰",
+    equipFromShop: "Equip from 🛒 Shop",
+    bonusReward: "Bonus reward",
+
+    /* Toasts */
+    notEnoughCoin: "Not enough 💰",
+    notEnoughGem: "💎 Not enough diamonds!",
+    needTenGems: "💎 Need 10 diamonds!",
+    diamondGet: "💎 +1 Diamond!",
+    lifeLost: "💔 {n} left",
+    equipped: "Equipped {name}",
+    unequipped: "Unequipped {name}",
+    unlocked: "{name} unlocked & equipped!",
+    unlockedSkin: "Unlocked {name}!",
+    wishOnlyToast: "✨ Available via Wish only",
+    breakerSmashed: "💥 {n} walls smashed",
+    invincibleActive: "🦾 INVINCIBLE 5s!",
+    invincibleUsed: "🦾 already used this run",
+    skillActive: "ACTIVE {n}s",
+    skillCooldown: "Cooldown {n}s",
+    skillReadyI: "Press I",
+    skillReadyQ: "Press Q",
+    skillUsedShort: "Used this run",
+    skillPassive: "Passive",
+    skinEquipped: "Skin equipped",
+    welcomeToast: "👋 Welcome, {name}!",
+    needCoins: "💰 Need {cost} (have {have})",
+    diamondsAdded: "💎 +{n} diamond{s}!",
+    confirmTrade: "Trade {cost} 💰 for {qty} 💎?",
+
+    /* Skins */
+    "skin_green_name": "Classic",   "skin_green_desc":   "Default snake.",
+    "skin_blue_name":  "Ocean",     "skin_blue_desc":    "★★★★ Cool & crisp.",
+    "skin_gold_name":  "Royal Gold","skin_gold_desc":    "★★★★ Shiny luxury.",
+    "skin_cyan_name":  "Cyber",     "skin_cyan_desc":    "★★★★ Electric vibes.",
+    "skin_robot_name": "Cyborg",    "skin_robot_desc":   "★★★★★ Cyclops circuit",
+    "skin_rainbow_name":"Rainbow",  "skin_rainbow_desc": "★★★★★ Wish only · rare!",
+
+    /* Skills */
+    "skill_extraLife_name":  "Extra Life",   "skill_extraLife_desc":  "Start with 4 lives.",
+    "skill_slowStart_name":  "Slow Start",   "skill_slowStart_desc":  "Slower starting speed.",
+    "skill_fewerWalls_name": "Fewer Walls",  "skill_fewerWalls_desc": "Only 3 walls per round.",
+    "skill_ghost_name":      "Ghost",        "skill_ghost_desc":      "Pass through your own tail.",
+    "skill_invincible_name": "Invincible",   "skill_invincible_desc": "★★★★★ Press I — invincible 5s. 1× per run.",
+    "skill_breaker_name":    "Wall Breaker", "skill_breaker_desc":    "★★★★★ Press Q — smash 3×3 walls. 1s cooldown."
+  },
+  zh: {
+    pageTitle: "貪食蛇",
+    score: "分數", best: "最高",
+    hint: "空白鍵 = 暫停 · 蘋果給予 💰 · 每顆 3% 機率掉 💎",
+    back: "← 返回首頁",
+    shop: "商店", records: "紀錄", wish: "願望",
+
+    menuReady: "準備好了嗎?",
+    menuReadyText: "使用 <b>方向鍵</b> 或 <b>WASD</b> 移動。<br>吃蘋果,避開牆壁與自己。",
+    btnStart: "▶ 開始",
+    menuPaused: "已暫停",
+    menuPausedText: "喘口氣吧。",
+    btnResume: "▶ 繼續",
+    menuGameOver: "遊戲結束",
+    btnPlayAgain: "▶ 再玩一次",
+    finalScoreLine: "最終分數:<b>{score}</b> · 最高:<b>{best}</b><br>獲得:💰 {coins}{diamonds}",
+
+    shopTitle: "🛒 商店",
+    tabSkins: "🎨 造型", tabSkills: "⚡ 技能", tabWish: "✨ 願望",
+    statusEquipped: "✓ 已裝備",
+    statusEquip: "點擊裝備",
+    statusWishOnly: "✨ 願望限定",
+
+    recordsTitle: "📊 紀錄",
+    recordsEmpty: "尚無紀錄。<br>玩一場創下第一筆吧!",
+    topRuns: "🏆 前 5 名",
+    currentBalance: "💼 目前餘額",
+    coinsNow: "💰 目前金幣",
+    diamondsNow: "💎 目前鑽石",
+    lifetimeTotals: "📈 累計數據",
+    gamesPlayed: "🎮 遊玩次數",
+    totalCoinsEarned: "💰 累計賺得金幣",
+    totalDiamondsEarned: "💎 累計賺得鑽石",
+    longestSnake: "🐍 最長蛇身",
+
+    makeWish: "✨ 許願",
+    wishCost: "每次願望費用:1 💎",
+    welcomeGift: "🎁 歡迎禮物!領取你的 <b style=\"color:#ce93d8\">保底 ★★★★</b> 願望:",
+    claimFreeWish: "🎁 領取免費 4★ 願望",
+    rate5: "★★★★★ <span style=\"color:#ffd54f\">1%</span> — 70 次保底",
+    rate4: "★★★★ <span style=\"color:#ce93d8\">7%</span> — 20 次保底",
+    rate3: "★★★ <span style=\"color:#90caf9\">92%</span> — 金幣",
+    pityLine: "保底:★★★★★ <b id=\"pity5Display\" style=\"color:#ffd54f\">0</b>/70 · ★★★★ <b id=\"pity4Display\" style=\"color:#ce93d8\">0</b>/20<br><span style=\"opacity:0.7; font-size:11px\">10 連抽保證至少一個 ★★★★</span>",
+    wish1Btn: "✨ 許願 (1 💎)",
+    wish10Btn: "✨✨ 10 連抽 (10 💎)",
+    outOfDiamonds: "鑽石不夠?",
+    tradeInfo: "兌換 <b id=\"tradeQty\">1</b> 💎 — 花費 <b id=\"tradeCost\">400</b> 💰",
+    tradeBtn: "💱 兌換",
+    wishAgain: "再次許願",
+    tenPullSum: "本次獲得 +{n} 💰",
+    newSkin: "新造型已解鎖!",
+    newSkill: "新技能已解鎖!",
+    coinReward: "+{n} 金幣",
+    alreadyOwned: "已擁有 — +{n} 💰",
+    equipFromShop: "從 🛒 商店裝備",
+    bonusReward: "額外獎勵",
+
+    /* Toasts */
+    notEnoughCoin: "💰 不足",
+    notEnoughGem: "💎 鑽石不足!",
+    needTenGems: "💎 需要 10 顆鑽石!",
+    diamondGet: "💎 +1 鑽石!",
+    lifeLost: "💔 還剩 {n} 條",
+    equipped: "已裝備 {name}",
+    unequipped: "已卸下 {name}",
+    unlocked: "已解鎖並裝備 {name}!",
+    unlockedSkin: "已解鎖 {name}!",
+    wishOnlyToast: "✨ 僅能透過願望取得",
+    breakerSmashed: "💥 已粉碎 {n} 道牆",
+    invincibleActive: "🦾 無敵 5 秒!",
+    invincibleUsed: "🦾 本局已使用過",
+    skillActive: "啟動中 {n}s",
+    skillCooldown: "冷卻中 {n}s",
+    skillReadyI: "按 I 鍵",
+    skillReadyQ: "按 Q 鍵",
+    skillUsedShort: "本局已使用",
+    skillPassive: "被動",
+    skinEquipped: "造型已裝備",
+    welcomeToast: "👋 歡迎,{name}!",
+    needCoins: "💰 需要 {cost}(目前 {have})",
+    diamondsAdded: "💎 +{n} 顆鑽石!",
+    confirmTrade: "用 {cost} 💰 兌換 {qty} 💎?",
+
+    /* Skins */
+    "skin_green_name": "經典",    "skin_green_desc":   "預設造型。",
+    "skin_blue_name":  "海洋",    "skin_blue_desc":    "★★★★ 清涼爽快。",
+    "skin_gold_name":  "皇家黃金","skin_gold_desc":    "★★★★ 閃亮奢華。",
+    "skin_cyan_name":  "賽博",    "skin_cyan_desc":    "★★★★ 電光氛圍。",
+    "skin_robot_name": "機械人",  "skin_robot_desc":   "★★★★★ 獨眼電路",
+    "skin_rainbow_name":"彩虹",   "skin_rainbow_desc": "★★★★★ 願望限定 · 稀有!",
+
+    /* Skills */
+    "skill_extraLife_name":  "額外生命",  "skill_extraLife_desc":  "開局擁有 4 條生命。",
+    "skill_slowStart_name":  "緩慢起步",  "skill_slowStart_desc":  "起始速度較慢。",
+    "skill_fewerWalls_name": "減少牆壁",  "skill_fewerWalls_desc": "每回合只有 3 道牆。",
+    "skill_ghost_name":      "幽靈",      "skill_ghost_desc":      "可穿越自己的尾巴。",
+    "skill_invincible_name": "無敵",      "skill_invincible_desc": "★★★★★ 按 I 鍵 — 無敵 5 秒,每局可用 1 次。",
+    "skill_breaker_name":    "破牆者",    "skill_breaker_desc":    "★★★★★ 按 Q 鍵 — 粉碎 3×3 範圍內的牆,1 秒冷卻。"
+  }
+};
+let curLang = localStorage.getItem("flappyLang") || "en";
+function t(k, vars) {
+  const tbl = I18N[curLang] || I18N.en;
+  let s = tbl[k] != null ? tbl[k] : (I18N.en[k] != null ? I18N.en[k] : k);
+  if (vars) Object.keys(vars).forEach(v => s = s.split(`{${v}}`).join(vars[v]));
+  return s;
+}
+function applyLang() {
+  document.documentElement.lang = curLang === "zh" ? "zh-Hant" : "en";
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const k = el.dataset.i18n;
+    const v = t(k);
+    if (v != null) el.innerHTML = v;
+  });
+}
+window.addEventListener("storage", e => {
+  if (e.key === "flappyLang") {
+    curLang = e.newValue || "en";
+    applyLang();
+    if (shopBackdrop.classList.contains("show")) renderShop();
+    refreshHUD();
+  }
+});
+
+/* ============ Snake-specific store ============ */
+const STORE = {
+  get skin()    { return localStorage.getItem("snake.skin") || "green"; },
+  set skin(v)   { localStorage.setItem("snake.skin", v); },
+  get owned()   { try { return JSON.parse(localStorage.getItem("snake.owned") || '["green"]'); } catch { return ["green"]; } },
+  set owned(v)  { localStorage.setItem("snake.owned", JSON.stringify(v)); },
+  /* Owned skills (object: { id: true }) */
+  get up()      { try { return JSON.parse(localStorage.getItem("snake.up") || "{}"); } catch { return {}; } },
+  set up(v)     { localStorage.setItem("snake.up", JSON.stringify(v)); },
+  /* Currently equipped skill id (only one active) */
+  get skill()   { return localStorage.getItem("snake.skill") || ""; },
+  set skill(v)  { if (v) localStorage.setItem("snake.skill", v); else localStorage.removeItem("snake.skill"); }
+};
+
+/* ============ Shop catalogue ============ */
+const SKINS = [
+  { id: "green",   name: "Classic",    desc: "Default snake.",            price: 0,   head: "#a5d6a7", body: "#66bb6a", rarity: 3 },
+  { id: "blue",    name: "Ocean",      desc: "★★★★ Cool & crisp.",      price: 50,  head: "#90caf9", body: "#42a5f5", rarity: 4 },
+  { id: "gold",    name: "Royal Gold", desc: "★★★★ Shiny luxury.",      price: 200, head: "#ffe082", body: "#ffb300", rarity: 4 },
+  { id: "cyan",    name: "Cyber",      desc: "★★★★ Electric vibes.",    price: 300, head: "#80deea", body: "#26c6da", rarity: 4 },
+  { id: "robot",   name: "Cyborg",     desc: "★★★★★ Cyclops circuit",   wishOnly: true, head: "#cfd8dc", body: "#546e7a", rarity: 5, special: "robot" },
+  { id: "rainbow", name: "Rainbow",    desc: "★★★★★ Wish only · rare!", wishOnly: true, rarity: 5 }
+];
+const SKIN_GRADIENT = "linear-gradient(135deg,#ef5350,#ffd54f,#66bb6a,#4dd0e1,#7e57c2)";
+
+/* Wish system — mirrors Gacha Flyer exactly */
+const WISH_COST     = 1;     // 1 💎 per wish
+const PITY_5_MAX    = 70;    // guaranteed 5★
+const PITY_4_MAX    = 20;    // guaranteed 4★
+const BASE_5_PCT    = 1;     // base 5★ chance %
+const BASE_4_PCT    = 7;     // base 4★ chance %
+const DUP_4_COINS   = 80;    // duplicate 4★ refund
+const DUP_5_COINS   = 200;   // duplicate 5★ refund
+const TRADE_RATE    = 400;   // 400 💰 → 1 💎
+
+const UPGRADES = [
+  { id: "extraLife",  name: "Extra Life",   desc: "Start with 4 lives.",                          price: 80,  icon: "❤" },
+  { id: "slowStart",  name: "Slow Start",   desc: "Slower starting speed.",                       price: 60,  icon: "🐢" },
+  { id: "fewerWalls", name: "Fewer Walls",  desc: "Only 3 walls per round.",                      price: 120, icon: "🧱" },
+  { id: "ghost",      name: "Ghost",        desc: "Pass through your own tail.",                  price: 200, icon: "👻" },
+  /* Wish-only 5★ skills */
+  { id: "invincible", name: "Invincible",   desc: "★★★★★ Press I — invincible 5s. 1× per run.",   wishOnly: true, icon: "🦾", rarity: 5 },
+  { id: "breaker",    name: "Wall Breaker", desc: "★★★★★ Press Q — smash 3×3 walls. 1s cooldown.", wishOnly: true, icon: "💥", rarity: 5 }
+];
+
+/* ============ Constants ============ */
+const CELL = 20, COLS = 20, ROWS = 20;
+
+/* ============ DOM ============ */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const livesEl = document.getElementById("lives");
+const bestEl  = document.getElementById("best");
+const coinEl  = document.getElementById("coinCount");
+const gemEl   = document.getElementById("diamondCount");
+const speedEl = document.getElementById("speed");
+const overlay = document.getElementById("overlay");
+const toastEl = document.getElementById("toast");
+const shopBackdrop = document.getElementById("shopBackdrop");
+const recordsBackdrop = document.getElementById("recordsBackdrop");
+const wishBackdrop = document.getElementById("wishBackdrop");
+
+/* ============ State ============ */
+let snake, dir, nextDir, food, walls, score, lives, tickMs, lastTick, appleCount, runDiamonds;
+let best = parseInt(localStorage.getItem("snakeBest") || "0", 10);
+let state = "menu";
+/* Skill runtime state */
+let invincibleUntil = 0;      // performance.now() ms — snake immune until this time
+let invincibleUsed  = false;  // 1× per run
+let lastBreakerAt   = 0;      // performance.now() ms of last wall-breaker
+let wallExplosions  = [];     // {x, y, time} — visual-only fading effects
+/* Auto-pause on popup */
+let wasPlayingBeforePopup = false;
+let pauseStart = 0;
+/* 2s prep countdown before play resumes/starts */
+let countdownEnd = 0;
+const PREP_MS = 2000;
+/* Play time tracking (ms during active play only) */
+let playTime = 0;
+let lastFrameTime = 0;
+
+/* ============ HUD ============ */
+function refreshHUD() {
+  bestEl.textContent = best;
+  coinEl.textContent = WALLET.coins;
+  gemEl.textContent  = WALLET.diamonds;
+  const sc = document.getElementById("shopCoins");
+  const sg = document.getElementById("shopGems");
+  if (sc) sc.textContent = WALLET.coins;
+  if (sg) sg.textContent = WALLET.diamonds;
+}
+
+function updateSpeedHUD() {
+  if (!tickMs) return;
+  speedEl.textContent = (130 / tickMs).toFixed(2) + "x";
+}
+
+function updateSkillCorner() {
+  const id = STORE.skill;
+  const u = UPGRADES.find(x => x.id === id);
+  const el = document.getElementById("skillCorner");
+  if (!u) { el.classList.remove("show"); return; }
+  document.getElementById("skillCornerName").innerHTML = `${u.icon} ${t(`skill_${id}_name`)}`;
+  document.getElementById("skillCornerDesc").innerHTML = t(`skill_${id}_desc`);
+  el.classList.add("show");
+  updateSkillStatus();
+}
+
+function updateSkillStatus() {
+  const id = STORE.skill;
+  const statusEl = document.getElementById("skillCornerStatus");
+  if (!statusEl) return;
+  statusEl.className = "skillCornerStatus";
+  const now = performance.now();
+
+  if (id === "invincible") {
+    if (now < invincibleUntil) {
+      const remaining = Math.max(0, (invincibleUntil - now) / 1000).toFixed(1);
+      statusEl.classList.add("active");
+      statusEl.innerHTML = t("skillActive", { n: remaining });
+    } else if (invincibleUsed) {
+      statusEl.classList.add("used");
+      statusEl.innerHTML = t("skillUsedShort");
+    } else {
+      statusEl.classList.add("ready");
+      statusEl.innerHTML = t("skillReadyI");
+    }
+  } else if (id === "breaker") {
+    const remaining = (lastBreakerAt + 1000) - now;
+    if (remaining > 0) {
+      statusEl.classList.add("cooldown");
+      statusEl.innerHTML = t("skillCooldown", { n: (remaining / 1000).toFixed(1) });
+    } else {
+      statusEl.classList.add("ready");
+      statusEl.innerHTML = t("skillReadyQ");
+    }
+  } else if (id) {
+    statusEl.innerHTML = t("skillPassive");
+    statusEl.style.opacity = "0.6";
+  } else {
+    statusEl.innerHTML = "";
+  }
+}
+
+/* ============ Toast ============ */
+let toastTimer;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1600);
+}
+
+/* ============ Round / game setup ============ */
+function resetRound() {
+  snake = [{x: 10, y: 10}, {x: 9, y: 10}, {x: 8, y: 10}];
+  dir = {x: 1, y: 0};
+  nextDir = dir;
+  placeFood();
+  tickMs = STORE.skill === "slowStart" ? 160 : 130;
+  lastTick = 0;
+  updateSpeedHUD();
+}
+
+function resetGame() {
+  score = 0;
+  appleCount = 0;
+  runDiamonds = 0;
+  playTime = 0;
+  lastFrameTime = 0;
+  const sk = STORE.skill;
+  lives = sk === "extraLife" ? 4 : 3;
+  walls = makeWalls(sk === "fewerWalls" ? 3 : 6);
+  invincibleUntil = 0;
+  invincibleUsed = false;
+  lastBreakerAt = 0;
+  scoreEl.textContent = score;
+  livesEl.textContent = "❤".repeat(lives);
+  resetRound();
+}
+
+function makeWalls(n) {
+  const ws = [];
+  while (ws.length < n) {
+    const w = {x: rand(1, COLS - 2), y: rand(1, ROWS - 2)};
+    if (Math.abs(w.x - 10) < 4 && Math.abs(w.y - 10) < 4) continue;
+    if (ws.some(o => o.x === w.x && o.y === w.y)) continue;
+    ws.push(w);
+  }
+  return ws;
+}
+
+/* Spawn a single new wall in a random valid position (far from snake/food/other walls) */
+function spawnSingleWall() {
+  for (let tries = 0; tries < 40; tries++) {
+    const w = {x: rand(1, COLS - 2), y: rand(1, ROWS - 2)};
+    if (snake.some(s => Math.abs(s.x - w.x) + Math.abs(s.y - w.y) < 3)) continue;
+    if (walls.some(o => o.x === w.x && o.y === w.y)) continue;
+    if (food && food.x === w.x && food.y === w.y) continue;
+    return w;
+  }
+  return null;
+}
+
+function placeFood() {
+  const isWall = (x, y) => walls && walls.some(w => w.x === x && w.y === y);
+  /* First try: pick a cell that's not sandwiched between two walls */
+  for (let tries = 0; tries < 80; tries++) {
+    const f = {x: rand(0, COLS - 1), y: rand(0, ROWS - 1)};
+    if (snake.some(s => s.x === f.x && s.y === f.y)) continue;
+    if (isWall(f.x, f.y)) continue;
+    const sandwichV = isWall(f.x, f.y - 1) && isWall(f.x, f.y + 1);
+    const sandwichH = isWall(f.x - 1, f.y) && isWall(f.x + 1, f.y);
+    if (sandwichV || sandwichH) continue;
+    food = f;
+    return;
+  }
+  /* Fallback: any open cell */
+  while (true) {
+    const f = {x: rand(0, COLS - 1), y: rand(0, ROWS - 1)};
+    if (snake.some(s => s.x === f.x && s.y === f.y)) continue;
+    if (isWall(f.x, f.y)) continue;
+    food = f;
+    return;
+  }
+}
+
+function rand(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+
+/* ============ Game loop ============ */
+function step() {
+  dir = nextDir;
+  let nx = snake[0].x + dir.x;
+  let ny = snake[0].y + dir.y;
+  // Wrap around edges instead of dying
+  if (nx < 0)      nx = COLS - 1;
+  if (nx >= COLS)  nx = 0;
+  if (ny < 0)      ny = ROWS - 1;
+  if (ny >= ROWS)  ny = 0;
+  const head = {x: nx, y: ny};
+  const ghosting = STORE.skill === "ghost";
+  const invincible = performance.now() < invincibleUntil;
+  const hitObstacle = walls.some(w => w.x === head.x && w.y === head.y);
+  const hitSelf = snake.some(s => s.x === head.x && s.y === head.y);
+
+  if ((hitObstacle && !invincible) || (hitSelf && !ghosting && !invincible)) {
+    lives--;
+    SFX.hit();
+    livesEl.textContent = "❤".repeat(Math.max(0, lives));
+    if (lives <= 0) return gameOver();
+    toast(t("lifeLost", { n: lives }));
+    resetRound();
+    lastTick = performance.now();
+    return;
+  }
+
+  snake.unshift(head);
+
+  if (head.x === food.x && head.y === food.y) {
+    score++;
+    appleCount++;
+    WALLET.coins += 1;
+    SFX.eat();
+    if (Math.random() < 0.03) {
+      WALLET.diamonds += 1;
+      runDiamonds++;
+      toast(t("diamondGet"));
+      SFX.gem();
+    }
+    scoreEl.textContent = score;
+    if (score > best) {
+      best = score;
+      localStorage.setItem("snakeBest", best);
+      bestEl.textContent = best;
+    }
+    if (tickMs > 65) tickMs = Math.max(65, tickMs - 2);
+    updateSpeedHUD();
+    /* Each apple adds one wall, capped at 20 */
+    if (walls.length < 20) {
+      const newWall = spawnSingleWall();
+      if (newWall) walls.push(newWall);
+    }
+    placeFood();
+  } else {
+    snake.pop();
+  }
+}
+
+function draw() {
+  ctx.fillStyle = "#14141a";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = "rgba(255,255,255,0.04)";
+  for (let i = 1; i < COLS; i++) {
+    ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, canvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(canvas.width, i * CELL); ctx.stroke();
+  }
+
+  ctx.fillStyle = "#555a66";
+  walls.forEach(w => roundedRect(w.x * CELL + 2, w.y * CELL + 2, CELL - 4, CELL - 4, 4));
+
+  /* Wall explosion effect — fading ring + flash, ~600ms each */
+  const nowT = performance.now();
+  wallExplosions = wallExplosions.filter(e => nowT - e.time < 600);
+  wallExplosions.forEach(e => {
+    const t = (nowT - e.time) / 600;
+    const cx = e.x * CELL + CELL / 2;
+    const cy = e.y * CELL + CELL / 2;
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,112,67,${1 - t})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, CELL / 2 + t * CELL, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = `rgba(255,213,79,${(1 - t) * 0.7})`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, (CELL / 2) * (1 - t), 0, Math.PI * 2);
+    ctx.fill();
+    /* Small debris sparks */
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2 + e.time / 200;
+      const dist = CELL * 0.4 + t * CELL * 1.1;
+      const px = cx + Math.cos(ang) * dist;
+      const py = cy + Math.sin(ang) * dist;
+      ctx.fillStyle = `rgba(255,160,80,${1 - t})`;
+      ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
+    }
+    ctx.restore();
+  });
+
+  ctx.fillStyle = "#ef5350";
+  const fx = food.x * CELL + CELL / 2;
+  const fy = food.y * CELL + CELL / 2;
+  ctx.beginPath();
+  ctx.arc(fx, fy, CELL / 2 - 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  const skin = SKINS.find(s => s.id === STORE.skin) || SKINS[0];
+  const invinc = performance.now() < invincibleUntil;
+  const now = performance.now();
+
+  /* Wish-skin aura — drawn beneath the body so it glows around the snake */
+  if (skin.wishOnly) {
+    ctx.save();
+    snake.forEach((s, i) => {
+      const cx = s.x * CELL + CELL/2;
+      const cy = s.y * CELL + CELL/2;
+      let color;
+      if (skin.id === "rainbow") {
+        const hue = (i * 25 + now / 20) % 360;
+        color = `hsla(${hue}, 90%, 60%, ${0.35 + 0.2 * Math.sin(now / 200 + i)})`;
+      } else if (skin.id === "robot") {
+        color = `rgba(255,23,68,${0.18 + 0.15 * Math.sin(now / 180 + i * 0.5)})`;
+      } else {
+        color = `rgba(206,147,216,${0.18 + 0.15 * Math.sin(now / 200 + i)})`;
+      }
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(cx, cy, CELL * (0.9 + 0.15 * Math.sin(now / 220 + i)), 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  /* Invincible aura — golden glow behind snake */
+  if (invinc) {
+    const head = snake[0];
+    ctx.save();
+    ctx.fillStyle = `rgba(255,213,79,${0.25 + 0.15 * Math.sin(now / 100)})`;
+    ctx.beginPath();
+    ctx.arc(head.x * CELL + CELL/2, head.y * CELL + CELL/2, CELL * 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  snake.forEach((s, i) => {
+    if (skin.id === "rainbow") {
+      const hue = (i * 25 + performance.now() / 20) % 360;
+      ctx.fillStyle = `hsl(${hue}, 75%, ${i === 0 ? 70 : 60}%)`;
+    } else {
+      ctx.fillStyle = i === 0 ? skin.head : skin.body;
+    }
+    /* For pacman head, skip the rect — drawHead will render a circle with mouth */
+    if (i === 0 && skin.special === "pacman") return;
+    roundedRect(s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2, 5);
+  });
+
+  /* Head features */
+  drawHead(snake[0], skin);
+
+  /* 2s prep countdown overlay */
+  if (state === "playing" && performance.now() < countdownEnd) {
+    const remaining = (countdownEnd - performance.now()) / 1000;
+    const n = Math.ceil(remaining);
+    const frac = remaining - Math.floor(remaining);
+    ctx.save();
+    ctx.fillStyle = "rgba(20,20,26,0.55)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = `rgba(255,255,255,${0.55 + 0.45 * frac})`;
+    ctx.font = "bold 110px Trebuchet MS, Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(0,0,0,0.6)";
+    ctx.shadowBlur = 8;
+    ctx.fillText(String(n), canvas.width / 2, canvas.height / 2);
+    ctx.font = "bold 22px Trebuchet MS, Arial";
+    ctx.fillStyle = "rgba(165,214,167,0.95)";
+    ctx.fillText("READY", canvas.width / 2, canvas.height / 2 - 80);
+    ctx.restore();
+  }
+}
+
+function drawHead(s, skin) {
+  const x = s.x * CELL, y = s.y * CELL;
+  const sp = skin.special;
+
+  /* Pacman: circle body with chomping mouth */
+  if (sp === "pacman") {
+    ctx.fillStyle = skin.head;
+    ctx.beginPath();
+    ctx.arc(x + CELL/2, y + CELL/2, CELL/2 - 1, 0, Math.PI * 2);
+    ctx.fill();
+    const t = Math.abs(Math.sin(performance.now() / 120)) * 0.35 + 0.05;
+    let base;
+    if (dir.x === 1)       base = 0;
+    else if (dir.x === -1) base = Math.PI;
+    else if (dir.y === 1)  base = Math.PI / 2;
+    else                   base = -Math.PI / 2;
+    ctx.fillStyle = "#14141a";
+    ctx.beginPath();
+    ctx.moveTo(x + CELL/2, y + CELL/2);
+    ctx.arc(x + CELL/2, y + CELL/2, CELL/2, base - t, base + t);
+    ctx.closePath();
+    ctx.fill();
+    /* Small eye on top */
+    const eyeX = dir.x !== 0 ? CELL/2 : (dir.y > 0 ? 14 : 6);
+    const eyeY = dir.y !== 0 ? CELL/2 : (dir.x > 0 ? 6 : 14);
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.arc(x + eyeX, y + eyeY - 4 * (dir.y === 0 ? 1 : 0), 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  /* Robot: single red cyclops eye facing direction */
+  if (sp === "robot") {
+    let cx = CELL/2, cy = CELL/2;
+    if (dir.x === 1)       cx = CELL - 6;
+    else if (dir.x === -1) cx = 6;
+    else if (dir.y === 1)  cy = CELL - 6;
+    else                   cy = 6;
+    ctx.fillStyle = "rgba(255,23,68,0.4)";
+    ctx.beginPath(); ctx.arc(x + cx, y + cy, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#ff1744";
+    ctx.beginPath(); ctx.arc(x + cx, y + cy, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(x + cx, y + cy, 1.3, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
+
+  /* Eye positions for direction (used by default/pixel/dragon) */
+  let ex1, ey1, ex2, ey2;
+  if (dir.x === 1)       { ex1 = 14; ey1 = 6;  ex2 = 14; ey2 = 14; }
+  else if (dir.x === -1) { ex1 = 6;  ey1 = 6;  ex2 = 6;  ey2 = 14; }
+  else if (dir.y === 1)  { ex1 = 6;  ey1 = 14; ex2 = 14; ey2 = 14; }
+  else                   { ex1 = 6;  ey1 = 6;  ex2 = 14; ey2 = 6;  }
+
+  /* Pixel: chunky square eyes, no aliasing */
+  if (sp === "pixel") {
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x + ex1 - 2, y + ey1 - 2, 4, 4);
+    ctx.fillRect(x + ex2 - 2, y + ey2 - 2, 4, 4);
+    return;
+  }
+
+  /* Default eyes: white sclera with black pupil */
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(x + ex1, y + ey1, 2.6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + ex2, y + ey2, 2.6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#000";
+  ctx.beginPath(); ctx.arc(x + ex1, y + ey1, 1.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + ex2, y + ey2, 1.3, 0, Math.PI * 2); ctx.fill();
+
+  /* Dragon: two yellow horns above head */
+  if (sp === "dragon") {
+    ctx.fillStyle = "#ffd54f";
+    ctx.fillRect(x + 4,  y - 2, 2, 4);
+    ctx.fillRect(x + 14, y - 2, 2, 4);
+  }
+}
+
+function roundedRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function formatTime(ms) {
+  const tot = Math.floor(ms / 1000);
+  const m = String(Math.floor(tot / 60)).padStart(2, "0");
+  const s = String(tot % 60).padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+function loop(ts) {
+  const dt = lastFrameTime ? (ts - lastFrameTime) : 0;
+  lastFrameTime = ts;
+  /* Time advances only when actively playing — not during countdown / popup pause */
+  if (state === "playing" && ts >= countdownEnd) {
+    playTime += dt;
+    document.getElementById("playTime").textContent = formatTime(playTime);
+    if (ts - lastTick >= tickMs) {
+      step();
+      lastTick = ts;
+    }
+  }
+  draw();
+  updateSkillStatus();
+  refreshMobileSkillBtns();
+  requestAnimationFrame(loop);
+}
+
+/* ============ Overlay helpers ============ */
+function showMenu(title, text, buttons) {
+  state = "menu";
+  overlay.innerHTML = `
+    <h2>${title}</h2>
+    <p>${text}</p>
+    <div class="row">
+      ${buttons.map((b, i) => `<button class="btn ${b.primary ? '' : 'secondary'}" data-i="${i}">${b.label}</button>`).join("")}
+    </div>
+  `;
+  overlay.classList.add("show");
+  overlay.querySelectorAll("button[data-i]").forEach(btn => {
+    btn.onclick = () => buttons[+btn.dataset.i].action();
+  });
+}
+function hideOverlay() { overlay.classList.remove("show"); }
+
+function startPlaying() {
+  hideOverlay();
+  state = "playing";
+  countdownEnd = performance.now() + PREP_MS;
+  lastTick = countdownEnd;
+  SFX.start();
+}
+
+function anyPopupOpen() {
+  return shopBackdrop.classList.contains("show") ||
+         wishBackdrop.classList.contains("show") ||
+         recordsBackdrop.classList.contains("show");
+}
+function autoPauseOnPopup() {
+  if (state === "playing") {
+    wasPlayingBeforePopup = true;
+    state = "menu";
+    pauseStart = performance.now();
+    document.getElementById("pauseOverlay").classList.add("show");
+  }
+}
+function autoResumeOnPopupClose() {
+  if (!anyPopupOpen() && wasPlayingBeforePopup) {
+    wasPlayingBeforePopup = false;
+    state = "playing";
+    document.getElementById("pauseOverlay").classList.remove("show");
+    if (pauseStart) {
+      const elapsed = performance.now() - pauseStart;
+      if (countdownEnd)   countdownEnd   += elapsed;
+      if (invincibleUntil) invincibleUntil += elapsed;
+      if (lastBreakerAt)   lastBreakerAt   += elapsed;
+      lastTick = performance.now();
+      lastFrameTime = performance.now();
+    }
+    pauseStart = 0;
+  }
+}
+
+function gameOver() {
+  SFX.gameOver();
+  recordRun(score);
+  saveRecord(score);
+  showMenu(
+    t("menuGameOver"),
+    t("finalScoreLine", { score, best, coins: score, diamonds: runDiamonds > 0 ? ` · 💎 ${runDiamonds}` : "" }),
+    [
+      { label: t("btnPlayAgain"), primary: true, action: () => { resetGame(); startPlaying(); } }
+    ]
+  );
+}
+
+function showStartMenu() {
+  showMenu(
+    t("menuReady"),
+    t("menuReadyText"),
+    [
+      { label: t("btnStart"), primary: true, action: startPlaying }
+    ]
+  );
+}
+
+function showPauseMenu() {
+  showMenu(t("menuPaused"), t("menuPausedText"), [
+    { label: t("btnResume"), primary: true, action: startPlaying }
+  ]);
+}
+
+/* ============ Wish (mirrors Gacha Flyer) ============ */
+const PITY = {
+  get p5()  { return parseInt(localStorage.getItem("snake.pity5") || "0", 10); },
+  set p5(v) { localStorage.setItem("snake.pity5", v|0); },
+  get p4()  { return parseInt(localStorage.getItem("snake.pity4") || "0", 10); },
+  set p4(v) { localStorage.setItem("snake.pity4", v|0); }
+};
+function isFirstWish() { return !localStorage.getItem("snake.firstWishUsed"); }
+
+function openWish() {
+  autoPauseOnPopup();
+  resetWishStage();
+  if (isFirstWish()) {
+    document.getElementById("wishStage").style.display = "none";
+    document.getElementById("firstWishStage").style.display = "block";
+  } else {
+    document.getElementById("firstWishStage").style.display = "none";
+  }
+  refreshWishUI();
+  wishBackdrop.classList.add("show");
+}
+function closeWish() { wishBackdrop.classList.remove("show"); autoResumeOnPopupClose(); }
+wishBackdrop.addEventListener("click", closeWish);
+
+function resetWishStage() {
+  document.getElementById("wishStage").style.display = isFirstWish() ? "none" : "block";
+  document.getElementById("wishResult").style.display = "none";
+  if (isFirstWish()) document.getElementById("firstWishStage").style.display = "block";
+  refreshWishUI();
+}
+
+function refreshWishUI() {
+  document.getElementById("wishGemsHeader").textContent = WALLET.diamonds;
+  document.getElementById("pity5Display").textContent = PITY.p5;
+  document.getElementById("pity4Display").textContent = PITY.p4;
+  document.getElementById("wishGoBtn").disabled  = WALLET.diamonds < 1;
+  document.getElementById("wishTenBtn").disabled = WALLET.diamonds < 10;
+  updateTradeUI();
+}
+
+function rollWish(force4 = false) {
+  let p5 = PITY.p5 + 1;
+  let p4 = PITY.p4 + 1;
+  let rarity;
+  if (p5 >= PITY_5_MAX)                rarity = 5;
+  else if (p4 >= PITY_4_MAX || force4) rarity = 4;
+  else {
+    const r = Math.random() * 100;
+    if (r < BASE_5_PCT)                          rarity = 5;
+    else if (r < BASE_4_PCT + BASE_5_PCT)        rarity = 4;
+    else                                         rarity = 3;
+  }
+  if (rarity === 5) { p5 = 0; p4 = 0; }
+  else if (rarity === 4) { p4 = 0; }
+  PITY.p5 = p5;
+  PITY.p4 = p4;
+
+  if (rarity === 3) return { rarity: 3, coins: 15 + Math.floor(Math.random() * 36) };
+  return { rarity, ...pickWithUnownedBias(rarity) };
+}
+
+function pickWithUnownedBias(rarity) {
+  const skins  = SKINS.filter(s => s.rarity === rarity && s.id !== "green").map(s => ({...s, _type: "skin"}));
+  const skills = UPGRADES.filter(u => u.rarity === rarity).map(u => ({...u, _type: "skill"}));
+  const pool = [...skins, ...skills];
+  if (pool.length === 0) return { item: null };
+  const ownedSkins = STORE.owned;
+  const ownedSkills = STORE.up;
+  const unowned = pool.filter(p => p._type === "skin" ? !ownedSkins.includes(p.id) : !ownedSkills[p.id]);
+  const src = (unowned.length > 0 && Math.random() < 0.8) ? unowned : pool;
+  const item = src[Math.floor(Math.random() * src.length)];
+  return { item };
+}
+
+function applyWishResult(r) {
+  if (r.rarity === 3) {
+    WALLET.coins += r.coins;
+    return { dup: false, coinsGained: r.coins };
+  }
+  const it = r.item;
+  if (!it) return { dup: false };
+  if (it._type === "skin") {
+    const owned = STORE.owned;
+    if (owned.includes(it.id)) {
+      const refund = r.rarity === 5 ? DUP_5_COINS : DUP_4_COINS;
+      WALLET.coins += refund;
+      return { dup: true, coinsGained: refund };
+    }
+    owned.push(it.id); STORE.owned = owned;
+    return { dup: false, coinsGained: 0 };
+  }
+  const up = STORE.up;
+  if (up[it.id]) {
+    const refund = r.rarity === 5 ? DUP_5_COINS : DUP_4_COINS;
+    WALLET.coins += refund;
+    return { dup: true, coinsGained: refund };
+  }
+  up[it.id] = true; STORE.up = up;
+  return { dup: false, coinsGained: 0 };
+}
+
+function flash5Star() {
+  const el = document.createElement("div");
+  el.className = "screenFlash";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 700);
+  // Burst of stars flying outward
+  const burst = document.createElement("div");
+  burst.className = "fiveStarBurst";
+  for (let i = 0; i < 14; i++) {
+    const star = document.createElement("span");
+    star.textContent = "★";
+    const ang = (i / 14) * Math.PI * 2;
+    const dist = 180 + Math.random() * 120;
+    star.style.setProperty("--dx", `${Math.cos(ang) * dist}px`);
+    star.style.setProperty("--dy", `${Math.sin(ang) * dist}px`);
+    star.style.animationDelay = `${i * 0.03}s`;
+    burst.appendChild(star);
+  }
+  document.body.appendChild(burst);
+  setTimeout(() => burst.remove(), 1800);
+}
+
+function showWishResult(r, applied) {
+  document.getElementById("wishStage").style.display = "none";
+  document.getElementById("firstWishStage").style.display = "none";
+  document.getElementById("wishResult").style.display = "block";
+
+  const starsEl = document.getElementById("wishStars");
+  starsEl.className = `star${r.rarity} reveal-anim`;
+  starsEl.textContent = "★".repeat(r.rarity);
+
+  const itemEl = document.getElementById("wishItem");
+  itemEl.className = "reveal-anim";
+  let icon = "💰", msg = "";
+
+  if (r.rarity === 3) {
+    icon = "💰";
+    msg = t("coinReward", { n: r.coins });
+  } else if (r.item) {
+    const it = r.item;
+    icon = it.icon || (it._type === "skin" ? "🎨" : "⚡");
+    const nameKey = it._type === "skin" ? `skin_${it.id}_name` : `skill_${it.id}_name`;
+    const descKey = it._type === "skin" ? `skin_${it.id}_desc` : `skill_${it.id}_desc`;
+    const localName = t(nameKey);
+    const localDesc = t(descKey).replace(/^★+\s*/, "");
+    if (applied.dup) {
+      msg = `<b>${localName}</b><br><span style="opacity:.7">${t("alreadyOwned", { n: applied.coinsGained })}</span>`;
+    } else {
+      msg = `<b>${localName}</b><br>${localDesc}<br><span style="opacity:.7">${t("equipFromShop")}</span>`;
+    }
+  }
+  itemEl.textContent = icon;
+  document.getElementById("wishMessage").innerHTML = msg;
+  if (r.rarity === 5) flash5Star();
+}
+
+function makeWish() {
+  if (WALLET.diamonds < 1) return toast(t("notEnoughGem"));
+  WALLET.diamonds -= 1;
+  const r = rollWish();
+  const applied = applyWishResult(r);
+  showWishResult(r, applied);
+  SFX.wish();
+  if (r.rarity === 5) SFX.rare5();
+  else if (r.rarity === 4) SFX.rare4();
+}
+
+function makeTenWish() {
+  if (WALLET.diamonds < 10) return toast(t("needTenGems"));
+  WALLET.diamonds -= 10;
+  SFX.wish10();
+  const results = [];
+  let highestRarity = 3;
+  let totalCoins = 0;
+  let hasGood = false;
+  for (let i = 0; i < 10; i++) {
+    const force4 = (i === 9 && !hasGood);
+    const r = rollWish(force4);
+    if (r.rarity >= 4) hasGood = true;
+    results.push(r);
+    if (r.rarity > highestRarity) highestRarity = r.rarity;
+    const a = applyWishResult(r);
+    if (r.rarity === 3) totalCoins += r.coins;
+    else if (a.dup)     totalCoins += a.coinsGained;
+  }
+
+  document.getElementById("wishStage").style.display = "none";
+  document.getElementById("firstWishStage").style.display = "none";
+  document.getElementById("wishResult").style.display = "block";
+  const starsEl = document.getElementById("wishStars");
+  starsEl.className = `star${highestRarity} reveal-anim`;
+  starsEl.textContent = "★".repeat(highestRarity) + " 10× Pull";
+
+  const grid = results.map(r => {
+    let icon, name;
+    if (r.rarity === 3) { icon = "💰"; name = `+${r.coins}`; }
+    else                { icon = r.item ? (r.item.icon || "🎨") : "?"; name = r.item ? r.item.name : ""; }
+    return `<div class="wishGridItem s${r.rarity}">
+      <div class="wishGridIcon">${icon}</div>
+      <div class="wishGridName">${name}</div>
+      <div class="wishGridStars star${r.rarity}">${"★".repeat(r.rarity)}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("wishItem").innerHTML = `<div class="wishGrid">${grid}</div>`;
+  document.getElementById("wishItem").className = "";
+  document.getElementById("wishMessage").innerHTML = t("tenPullSum", { n: totalCoins });
+  if (highestRarity === 5) { flash5Star(); SFX.rare5(); }
+  else if (highestRarity === 4) SFX.rare4();
+}
+
+function claimFirstWish() {
+  if (!isFirstWish()) return;
+  localStorage.setItem("snake.firstWishUsed", "1");
+  // Guaranteed 4★ — random from 4★ pool (skins + skills)
+  const skins  = SKINS.filter(s => s.rarity === 4 && s.id !== "green").map(s => ({...s, _type: "skin"}));
+  const skills = UPGRADES.filter(u => u.rarity === 4).map(u => ({...u, _type: "skill"}));
+  const pool = [...skins, ...skills];
+  const it = pool[Math.floor(Math.random() * pool.length)];
+  const r = { rarity: 4, item: it };
+  applyWishResult(r);
+  showWishResult(r, { dup: false, coinsGained: 0 });
+  SFX.wish();
+  SFX.rare4();
+}
+
+function updateTradeUI() {
+  const slider = document.getElementById("tradeSlider");
+  if (!slider) return;
+  /* Slider max = how many diamonds the player can afford (1 min so always usable) */
+  const affordable = Math.max(1, Math.floor(WALLET.coins / TRADE_RATE));
+  slider.max = affordable;
+  if (parseInt(slider.value, 10) > affordable) slider.value = affordable;
+  const qty = parseInt(slider.value, 10);
+  document.getElementById("tradeQty").textContent  = qty;
+  document.getElementById("tradeCost").textContent = qty * TRADE_RATE;
+}
+
+function executeTrade() {
+  const qty = parseInt(document.getElementById("tradeSlider").value, 10);
+  const cost = qty * TRADE_RATE;
+  if (WALLET.coins < cost) return toast(t("needCoins", { cost, have: WALLET.coins }));
+  if (!confirm(t("confirmTrade", { cost, qty }))) return;
+  WALLET.coins -= cost;
+  WALLET.diamonds += qty;
+  refreshWishUI();
+  toast(t("diamondsAdded", { n: qty, s: qty > 1 ? "s" : "" }));
+}
+
+/* ============ Records ============ */
+function getRecords() {
+  try { return JSON.parse(localStorage.getItem("snake.records") || "[]"); }
+  catch { return []; }
+}
+function getStats() {
+  try {
+    const s = JSON.parse(localStorage.getItem("snake.stats") || "{}");
+    return {
+      games:         s.games         || 0,
+      totalCoins:    s.totalCoins    || 0,
+      totalDiamonds: s.totalDiamonds || 0,
+      longest:       s.longest       || 3
+    };
+  } catch { return { games: 0, totalCoins: 0, totalDiamonds: 0, longest: 3 }; }
+}
+function saveStats(s) { localStorage.setItem("snake.stats", JSON.stringify(s)); }
+function recordRun(finalScore) {
+  const s = getStats();
+  s.games++;
+  s.totalCoins    += finalScore;          /* coins earned = score */
+  s.totalDiamonds += runDiamonds;
+  const length = snake ? snake.length : 3;
+  if (length > s.longest) s.longest = length;
+  saveStats(s);
+}
+function saveRecord(s) {
+  if (!s || s <= 0) return;
+  const name = localStorage.getItem("flappyName") || "Player";
+  let records = getRecords();
+  const existing = records.find(r => r.name === name);
+  if (existing) {
+    if (s > existing.score) {
+      existing.score = s;
+      existing.date = Date.now();
+    }
+  } else {
+    records.push({ name, score: s, date: Date.now() });
+  }
+  records.sort((a, b) => b.score - a.score);
+  localStorage.setItem("snake.records", JSON.stringify(records.slice(0, 5)));
+}
+function openRecords() {
+  autoPauseOnPopup();
+  renderRecords();
+  recordsBackdrop.classList.add("show");
+}
+function closeRecords() { recordsBackdrop.classList.remove("show"); autoResumeOnPopupClose(); }
+recordsBackdrop.addEventListener("click", closeRecords);
+
+function renderRecords() {
+  const records = getRecords();
+  const stats = getStats();
+  const list = document.getElementById("recordsList");
+  const myName = localStorage.getItem("flappyName") || "Player";
+
+  const topHtml = records.length === 0
+    ? `<div class="emptyRecords">${t("recordsEmpty")}</div>`
+    : records.map((r, i) => {
+        const d = new Date(r.date);
+        const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+        const isMe = r.name === myName;
+        return `
+          <div class="recordRow ${isMe ? 'me' : ''}">
+            <span class="rank">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1)}</span>
+            <span class="name">${escapeHtml(r.name)}</span>
+            <span class="score">${r.score}</span>
+            <span class="date">${dateStr}</span>
+          </div>`;
+      }).join("");
+
+  list.innerHTML = `
+    <div class="recordsSection">${t("topRuns")}</div>
+    ${topHtml}
+    <div class="recordsSection">${t("currentBalance")}</div>
+    <div class="recRow"><span>${t("coinsNow")}</span><b>${WALLET.coins}</b></div>
+    <div class="recRow"><span>${t("diamondsNow")}</span><b>${WALLET.diamonds}</b></div>
+    <div class="recordsSection">${t("lifetimeTotals")}</div>
+    <div class="recRow"><span>${t("gamesPlayed")}</span><b>${stats.games}</b></div>
+    <div class="recRow"><span>${t("totalCoinsEarned")}</span><b>${stats.totalCoins}</b></div>
+    <div class="recRow"><span>${t("totalDiamondsEarned")}</span><b>${stats.totalDiamonds}</b></div>
+    <div class="recRow"><span>${t("longestSnake")}</span><b>${stats.longest}</b></div>
+  `;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ============ Shop ============ */
+let activeShopTab = "skins";
+
+function openShop() {
+  autoPauseOnPopup();
+  refreshHUD();
+  renderShop();
+  shopBackdrop.classList.add("show");
+}
+function closeShop() {
+  shopBackdrop.classList.remove("show");
+  autoResumeOnPopupClose();
+}
+shopBackdrop.addEventListener("click", closeShop);
+
+function switchShopTab(tab) {
+  activeShopTab = tab;
+  document.querySelectorAll(".shopTabs .tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.tab === tab)
+  );
+  document.getElementById("skinGrid").style.display    = tab === "skins"    ? "grid" : "none";
+  document.getElementById("upgradeGrid").style.display = tab === "upgrades" ? "grid" : "none";
+}
+
+function renderShop() {
+  const owned = STORE.owned;
+  const equipped = STORE.skin;
+  const up = STORE.up;
+
+  document.getElementById("skinGrid").innerHTML = SKINS.map(s => {
+    const isOwned = owned.includes(s.id);
+    const isEquipped = equipped === s.id;
+    const stars = s.wishOnly ? "★".repeat(s.rarity) + " " : "";
+    let statusHtml;
+    if (isEquipped)        statusHtml = `<span class="status status-equipped">${t("statusEquipped")}</span>`;
+    else if (isOwned)      statusHtml = `<span class="status status-equip">${t("statusEquip")}</span>`;
+    else if (s.wishOnly)   statusHtml = `<span class="status status-locked-gem">${t("statusWishOnly")}</span>`;
+    else                   statusHtml = `<span class="status status-locked">💰 ${s.price}</span>`;
+    const cls = ["gCard", isEquipped ? "selected" : "", s.wishOnly ? "gemOnly" : "", (!isOwned ? "locked" : "")].filter(Boolean).join(" ");
+    const swatch = s.id === "rainbow" ? SKIN_GRADIENT : s.body;
+    return `
+      <div class="${cls}" data-skin="${s.id}">
+        <div class="skinSwatch" style="background:${swatch}"></div>
+        <div class="name">${stars}${t(`skin_${s.id}_name`)}</div>
+        <div class="desc">${t(`skin_${s.id}_desc`).replace(/^★+\s*/, "")}</div>
+        ${statusHtml}
+      </div>`;
+  }).join("");
+
+  const equippedSkill = STORE.skill;
+  document.getElementById("upgradeGrid").innerHTML = UPGRADES.map(u => {
+    const has = !!up[u.id];
+    const isEq = equippedSkill === u.id;
+    const stars = u.wishOnly ? "★".repeat(u.rarity) + " " : "";
+    let statusHtml;
+    if (isEq)            statusHtml = `<span class="status status-equipped">${t("statusEquipped")}</span>`;
+    else if (has)        statusHtml = `<span class="status status-equip">${t("statusEquip")}</span>`;
+    else if (u.wishOnly) statusHtml = `<span class="status status-locked-gem">${t("statusWishOnly")}</span>`;
+    else                 statusHtml = `<span class="status status-locked">💰 ${u.price}</span>`;
+    const cls = ["gCard", isEq ? "selected" : "", u.wishOnly ? "gemOnly" : "", !has ? "locked" : ""].filter(Boolean).join(" ");
+    return `
+      <div class="${cls}" data-up="${u.id}">
+        <div class="icon">${u.icon}</div>
+        <div class="name">${stars}${t(`skill_${u.id}_name`)}</div>
+        <div class="desc">${t(`skill_${u.id}_desc`).replace(/^★+\s*/, "")}</div>
+        ${statusHtml}
+      </div>`;
+  }).join("");
+
+  document.querySelectorAll("[data-skin]").forEach(c => c.onclick = () => onSkinClick(c.dataset.skin));
+  document.querySelectorAll("[data-up]").forEach(c => c.onclick = () => onUpgradeClick(c.dataset.up));
+}
+
+function onSkinClick(id) {
+  const s = SKINS.find(x => x.id === id);
+  if (!s) return;
+  const localName = t(`skin_${id}_name`) || s.name;
+  const owned = STORE.owned;
+  if (owned.includes(id)) {
+    if (STORE.skin === id) return;
+    STORE.skin = id;
+    toast(t("equipped", { name: localName }));
+    renderShop();
+    return;
+  }
+  if (s.wishOnly) return toast(t("wishOnlyToast"));
+  if (WALLET.coins < s.price) return toast(t("notEnoughCoin"));
+  WALLET.coins -= s.price;
+  owned.push(id);
+  STORE.owned = owned;
+  STORE.skin = id;
+  toast(t("unlockedSkin", { name: localName }));
+  renderShop();
+}
+
+function onUpgradeClick(id) {
+  const u = UPGRADES.find(x => x.id === id);
+  if (!u) return;
+  const localName = t(`skill_${id}_name`) || u.name;
+  if (STORE.up[id]) {
+    if (STORE.skill === id) {
+      STORE.skill = "";
+      toast(t("unequipped", { name: localName }));
+    } else {
+      STORE.skill = id;
+      toast(t("equipped", { name: localName }));
+    }
+    updateSkillCorner();
+    renderShop();
+    return;
+  }
+  if (u.wishOnly) return toast(t("wishOnlyToast"));
+  if (WALLET.coins < u.price) return toast(t("notEnoughCoin"));
+  WALLET.coins -= u.price;
+  const up = STORE.up; up[id] = true; STORE.up = up;
+  STORE.skill = id;
+  updateSkillCorner();
+  toast(t("unlocked", { name: localName }));
+  renderShop();
+}
+
+/* ============ Input ============ */
+/* Touch support (mobile): swipe to change direction, tap to launch/pause */
+let touchStart = null;
+canvas.addEventListener("touchstart", e => {
+  e.preventDefault();
+  const tch = e.touches[0];
+  touchStart = { x: tch.clientX, y: tch.clientY, time: performance.now() };
+}, { passive: false });
+canvas.addEventListener("touchend", e => {
+  if (!touchStart) return;
+  const tch = e.changedTouches[0];
+  const dx = tch.clientX - touchStart.x;
+  const dy = tch.clientY - touchStart.y;
+  const adx = Math.abs(dx), ady = Math.abs(dy);
+  touchStart = null;
+  if (Math.max(adx, ady) < 18) {
+    /* Tap — same as Space: pause if playing, primary action if on menu */
+    if (state === "playing") { showPauseMenu(); return; }
+    if (state === "menu" && overlay.classList.contains("show")) {
+      const primary = overlay.querySelector("button.btn:not(.secondary)");
+      if (primary) primary.click();
+    }
+    return;
+  }
+  if (state !== "playing") return;
+  if (adx > ady) {
+    if (dx > 0 && dir.x !== -1) nextDir = { x: 1,  y: 0 };
+    if (dx < 0 && dir.x !==  1) nextDir = { x: -1, y: 0 };
+  } else {
+    if (dy > 0 && dir.y !== -1) nextDir = { x: 0,  y: 1 };
+    if (dy < 0 && dir.y !==  1) nextDir = { x: 0,  y: -1 };
+  }
+}, { passive: false });
+
+document.addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  if (k === "escape") {
+    if (shopBackdrop.classList.contains("show"))    { closeShop();    return; }
+    if (recordsBackdrop.classList.contains("show")) { closeRecords(); return; }
+    if (wishBackdrop.classList.contains("show"))    { closeWish();    return; }
+  }
+  if (k === " " || k === "spacebar") {
+    e.preventDefault();
+    if (state === "playing") { showPauseMenu(); return; }
+    if (state === "menu" && overlay.classList.contains("show")) {
+      const primary = overlay.querySelector("button.btn:not(.secondary)");
+      if (primary) primary.click();
+    }
+    return;
+  }
+  if (state !== "playing") return;
+  if ((k === "arrowup"    || k === "w") && dir.y !== 1)  nextDir = {x: 0,  y: -1};
+  if ((k === "arrowdown"  || k === "s") && dir.y !== -1) nextDir = {x: 0,  y: 1};
+  if ((k === "arrowleft"  || k === "a") && dir.x !== 1)  nextDir = {x: -1, y: 0};
+  if ((k === "arrowright" || k === "d") && dir.x !== -1) nextDir = {x: 1,  y: 0};
+
+  if (k === "i") triggerInvincible();
+  if (k === "q") triggerBreaker();
+});
+
+function triggerInvincible() {
+  if (state !== "playing" || performance.now() < countdownEnd) return;
+  if (STORE.skill !== "invincible" || !STORE.up.invincible) return;
+  if (invincibleUsed) return toast(t("invincibleUsed"));
+  invincibleUntil = performance.now() + 5000;
+  invincibleUsed = true;
+  toast(t("invincibleActive"));
+}
+
+function triggerBreaker() {
+  if (state !== "playing" || performance.now() < countdownEnd) return;
+  if (STORE.skill !== "breaker" || !STORE.up.breaker) return;
+  const now = performance.now();
+  if (now - lastBreakerAt < 1000) return;
+  lastBreakerAt = now;
+  const head = snake[0];
+  const destroyed = walls.filter(w => Math.abs(w.x - head.x) <= 1 && Math.abs(w.y - head.y) <= 1);
+  if (destroyed.length === 0) return;
+  walls = walls.filter(w => Math.abs(w.x - head.x) > 1 || Math.abs(w.y - head.y) > 1);
+  destroyed.forEach(d => wallExplosions.push({ x: d.x, y: d.y, time: now }));
+  for (let i = 0; i < destroyed.length; i++) {
+    const w = spawnSingleWall();
+    if (w) walls.push(w);
+  }
+  toast(t("breakerSmashed", { n: destroyed.length }));
+}
+
+function bindMobileBtn(el, fn) {
+  if (!el) return;
+  const handle = e => { e.preventDefault(); fn(); };
+  el.addEventListener("click",      handle);
+  el.addEventListener("touchstart", handle, { passive: false });
+}
+bindMobileBtn(document.getElementById("skillBtnI"), triggerInvincible);
+bindMobileBtn(document.getElementById("skillBtnQ"), triggerBreaker);
+
+function refreshMobileSkillBtns() {
+  const iBtn = document.getElementById("skillBtnI");
+  const qBtn = document.getElementById("skillBtnQ");
+  const sk = STORE.skill;
+  iBtn.classList.toggle("show", sk === "invincible" && STORE.up.invincible);
+  qBtn.classList.toggle("show", sk === "breaker"    && STORE.up.breaker);
+  iBtn.classList.toggle("locked", invincibleUsed);
+  const now = performance.now();
+  qBtn.classList.toggle("locked", now - lastBreakerAt < 1000);
+}
+
+/* ============ Boot ============ */
+/* Reset to green if equipped skin no longer exists (legacy cleanup) */
+if (!SKINS.find(s => s.id === STORE.skin)) STORE.skin = "green";
+
+applyLang();
+refreshHUD();
+resetGame();
+updateSkillCorner();
+showStartMenu();
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
